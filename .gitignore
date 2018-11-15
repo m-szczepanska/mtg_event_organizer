@@ -1,0 +1,12 @@
+# Git env
+*.git/
+
+# Python compiled files
+*.pyc
+*__pycache__
+
+# Notes, prototypes, development stuff, backups
+/__notes
+
+# Mac OS
+*.DS_Store

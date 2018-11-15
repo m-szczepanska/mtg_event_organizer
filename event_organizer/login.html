@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+{% load static %}
+<html>
+  <head>
+    <meta charset="utf-8">
+      <link rel="stylesheet" href="{% static 'todos/style.css' %}" />
+      <title>TodoList Login</title>
+  </head>
+  <body>
+    <form action="{% url 'login' %}" method="post">
+        {% csrf_token %}
+        <label for="username">Login</label><br/>
+        <input type="text" name="username" id="username"/>
+        <br><br>
+        <label for="password">Password</label><br/>
+        <input type="password" name="password" id="password"></input>
+        <br>
+        <div class="error">
+            <p>{{ error }}</p>
+        </div>
+        <div class="message">
+            <p>{{ message }}</p>
+        </div>
+        <input type="submit" value="Log in">
+        <br><br>
+        <input type="button" value="Password reset" onclick="window.location.href='{% url 'password_reset_request' %}'" />
+        <br><br>
+        <input type="button" value="Create an account" onclick="window.location.href='{% url 'register_request' %}'" />
+
+    </body>
+</html>
