@@ -4,12 +4,16 @@ from django.db import models
 
 
 class Player(models.Model):
-    """What is this, what does it do, why
+    """ Model containing four basic informations from players about themselves.
+    Args:
+        first_name - string; max length 255 chars
+        second_name - string; max length 255 chars
+        email - unique string; max length 254 chars
+        _password - hashed string
     """
-    # TODO: add integer, autoincrementing id
     first_name = models.CharField(max_length=255, blank=False)
     last_name = models.CharField(max_length=255, blank=False)
-    email = models.EmailField(max_length=254, blank=False)  # TODO unique?
+    email = models.EmailField(max_length=254, blank=False, unique=True)
     _password = models.CharField(max_length=255, blank=False)  # hashed
 
     def check_password(self, password_plaintext):
@@ -26,9 +30,16 @@ class Player(models.Model):
 
 
 class Tournament(models.Model):
+    """ Model containing four basic informations about game tournaments.
+    Args:
+        name - string; max length 255 chars, default value='mtg event'
+        date_beginning - in "YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ] format
+        date_ending - in "YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ] format
+        players - related Player instance
+    """
     name = models.CharField(max_length=255, blank=False, default="mtg event")
-    date_beginning = models.DateTimeField(auto_now=False, auto_now_add=False) #in "YYYY-MM-DD HH:MM[:ss[.uuuuuu]][TZ] format."
-    date_ending = models.DateTimeField(auto_now=False, auto_now_add=False) #albo models.DateField()?
+    date_beginning = models.DateTimeField(auto_now=False, auto_now_add=False)
+    date_ending = models.DateTimeField(auto_now=False, auto_now_add=False)
     players = models.ManyToManyField(Player)
 
     def get_player_history(self, player):
@@ -42,6 +53,15 @@ class Tournament(models.Model):
 
 
 class Match(models.Model):
+    """ Model containing four basic informations about matches in tournaments.
+    Args:
+        player_1 - related Player instance
+        player_2 - related Player instance
+        tournament - related Tournament instance
+        player_1_score - positive integer
+        player_2_score - positive integer
+        draws - integer, default value = 0
+    """
     player_1 = models.OneToOneField(
         Player,
         on_delete=models.CASCADE,
@@ -57,12 +77,13 @@ class Match(models.Model):
     player_2_score = models.PositiveSmallIntegerField()
     draws = models.IntegerField(default=0)
 
+    # TODO: Move to player model; add tests
     def get_player_matches(self, player):
         player_matches_all = Match.objects.filter(
             Q(player_1=player) | Q(player_2=player)
         )
         return player_matches_all
-    
+
     @property
     def tournament_name(self):
         return self.tournament.name
