@@ -62,20 +62,22 @@ class Match(models.Model):
         player_2_score - positive integer
         draws - integer, default value = 0
     """
-    player_1 = models.OneToOneField(
+    player_1 = models.ForeignKey(
         Player,
         on_delete=models.CASCADE,
         related_name='player_1'
         )
-    player_2 = models.OneToOneField(
+    player_2 = models.ForeignKey(
         Player,
         on_delete=models.CASCADE,
         related_name='player_2'
     )
-    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
-    player_1_score = models.PositiveSmallIntegerField()
+    tournament = models.ForeignKey(
+        Tournament, on_delete=models.CASCADE, related_name='matches')
+    player_1_score = models.PositiveSmallIntegerField()  # TODO Check if 0?
     player_2_score = models.PositiveSmallIntegerField()
     draws = models.IntegerField(default=0)
+    # TODO: Add round as integer field?
 
     # TODO: Move to player model; add tests
     def get_player_matches(self, player):

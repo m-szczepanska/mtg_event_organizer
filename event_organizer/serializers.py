@@ -51,22 +51,45 @@ class UpdatePlayerSerializer(serializers.Serializer):
         return attrs
 
 
-# TODO: make list serializer without players and details serializer with
-#       players AND matches
-class TournamentSerializer(serializers.Serializer):
+class TournamentListSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
+    date_beginning = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField()
+
+
+class TournamentCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
+    date_beginning = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField()
+
+# TournamentCreateSerializer for tournament_list POST
+
+class MatchSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    player_1 = GetPlayerSerializer(required=True)
+    player_2 = GetPlayerSerializer(required=True)
+    player_1_score = serializers.IntegerField(max_value=3, min_value=0)
+    player_2_score = serializers.IntegerField(max_value=3, min_value=0)
+    draws = serializers.IntegerField(max_value=5, min_value=0)
+
+
+class MatchListSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    player_1 = GetPlayerSerializer(required=True)
+    player_2 = GetPlayerSerializer(required=True)
+    player_1_score = serializers.IntegerField(max_value=3, min_value=0)
+    player_2_score = serializers.IntegerField(max_value=3, min_value=0)
+    draws = serializers.IntegerField(max_value=5, min_value=0)
+
+
+class TournamentDetailSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(
         required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
     date_ending = serializers.DateTimeField()
     players = GetPlayerSerializer(many=True)
-
-
-# TODO: Nested fields? how?
-
-class MatchSerializer(serializers.Serializer):
-    player_1 = GetPlayerSerializer(required=True)
-    player_2 = GetPlayerSerializer(required=True)
-    tournament = TournamentSerializer(required=True)
-    player_1_score = serializers.IntegerField(max_value=3, min_value=0)
-    player_2_score = serializers.IntegerField(max_value=3, min_value=0)
-    draws = serializers.IntegerField(max_value=5, min_value=0)
+    matches = MatchSerializer(many=True, read_only=True)

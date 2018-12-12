@@ -7,8 +7,10 @@ from event_organizer.serializers import (
     GetPlayerSerializer,
     CreatePlayerSerializer,
     UpdatePlayerSerializer,
-    TournamentSerializer,
-    MatchSerializer
+    TournamentListSerializer,
+    TournamentDetailSerializer,
+    MatchSerializer,
+    MatchListSerializer
 )
 
 
@@ -54,8 +56,6 @@ def player_details(request, id):
         return JsonResponse(serializer.data)
 
     elif request.method == 'PUT':
-        # TODO: Remember about unique mails; if updating mail, check if a
-        #       player with this mail already exists in DB
         # No changing passwords here!
         data = JSONParser().parse(request)
         serializer = UpdatePlayerSerializer(player, data=data)
@@ -78,13 +78,30 @@ def player_details(request, id):
 def tournament_list(request):
     if request.method == 'GET':
         tournaments = Tournament.objects.all()
-        serializer = TournamentSerializer(tournaments, many=True)
+        serializer = TournamentListSerializer(tournaments, many=True)
+        return JsonResponse(serializer.data, safe=False)
+# TODO: add POST using player_ids (list of integers) - new serializer
+
+@csrf_exempt
+def tournament_detail(request, id):
+    if request.method == 'GET':
+        tournament = Tournament.objects.get(id=id)
+        serializer = TournamentDetailSerializer(tournament, many=False)
         return JsonResponse(serializer.data, safe=False)
 
 
 @csrf_exempt
-def match_list(request):
+def match_detail(request, tournament_id, match_id):
+    if request.method == 'GET':
+        matches = Match.objects.get(id=match_id)
+        serializer = MatchSerializer(matches, many=False)
+        return JsonResponse(serializer.data, safe=False)
+
+@csrf_exempt
+def match_list(request, tournament_id):
     if request.method == 'GET':
         matches = Match.objects.all()
-        serializer = MatchSerializer(matches, many=True)
+        serializer = MatchListSerializer(matches, many=True)
         return JsonResponse(serializer.data, safe=False)
+
+# TODO: add match list,
