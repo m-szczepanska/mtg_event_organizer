@@ -9,8 +9,10 @@ from event_organizer.serializers import (
     UpdatePlayerSerializer,
     TournamentListSerializer,
     TournamentDetailSerializer,
-    MatchSerializer,
-    MatchListSerializer
+    MatchListSerializer,
+    MatchDetailSerializer,
+    MatchCreateSerializer,
+    TournamentCreateSerializer
 )
 
 
@@ -38,7 +40,7 @@ def player_list(request):
         new_player.set_password(data['password'])  # also saves the instance
 
         serializer_return = GetPlayerSerializer(new_player)
-        return JsonResponse(serializer_return.data, safe=False)
+        return JsonResponse(serializer_return.data, safe=False, status=201)
 
 
 @csrf_exempt
@@ -81,21 +83,80 @@ def tournament_list(request):
         serializer = TournamentListSerializer(tournaments, many=True)
         return JsonResponse(serializer.data, safe=False)
 # TODO: add POST using player_ids (list of integers) - new serializer
+    elif request.method == 'POST':
+        data = JSONParser().parse(request)
+        serializer = TournamentCreateSerializer(data=data)
+        if not serializer.is_valid():
+            return JsonResponse(serializer.errors, status=400)
+
+        new_tournament = Tournament(
+            name=data['name'],
+            date_beginning=data['date_beginning'],
+            date_ending=data['date_ending']
+        )
+        new_tournament.save()
+
+        serializer_return = TournamentListSerializer(new_tournament)
+        return JsonResponse(serializer_return.data, safe=False)
+
 
 @csrf_exempt
 def tournament_detail(request, id):
+    try:
+        tournament = Tournament.objects.get(id=id)
+    except Tournament.DoesNotExist:
+        return HttpResponse(status=404)
+
     if request.method == 'GET':
         tournament = Tournament.objects.get(id=id)
         serializer = TournamentDetailSerializer(tournament, many=False)
         return JsonResponse(serializer.data, safe=False)
 
+    elif request.method == 'PUT':
+        data = JSONParser().parse(request)
+        serializer = TournamentCreateSerializer(tournament, data=data)
+        if not serializer.is_valid():
+            return JsonResponse(serializer.errors, status=400)
+        tournament.name = data['name']
+        tournament.date_beginning = data['date_beginning']
+        tournament.date_ending = data['date_ending']
+        tournament.save()
+        serializer_return = TournamentDetailSerializer(tournament)
+        return JsonResponse(serializer_return.data, safe=False)
+
+    elif request.method == 'DELETE':
+        tournament.delete()
+        return HttpResponse(status=204)
 
 @csrf_exempt
 def match_detail(request, tournament_id, match_id):
+    try:
+        match = Match.objects.get(id=match_id)
+    except Tournament.DoesNotExist:
+        return HttpResponse(status=404)
+
     if request.method == 'GET':
-        matches = Match.objects.get(id=match_id)
-        serializer = MatchSerializer(matches, many=False)
+        match = Match.objects.get(id=match_id)
+        serializer = MatchDetailSerializer(match, many=False)
         return JsonResponse(serializer.data, safe=False)
+
+    elif request.method == 'PUT':
+        data = JSONParser().parse(request)
+        serializer = MatchCreateSerializer(match, data=data)
+        if not serializer.is_valid():
+            return JsonResponse(serializer.errors, status=400)
+        match.player_1_score = data['player_1_score']
+        match.player_2_score = data['player_2_score']
+        match.draws = data['draws']
+        match.round = data['round']
+        match.save()
+        serializer_return = MatchDetailSerializer(match)
+        return JsonResponse(serializer_return.data, safe=False)
+
+    elif request.method == 'DELETE':
+        tournament.delete()
+        return HttpResponse(status=204)
+
 
 @csrf_exempt
 def match_list(request, tournament_id):
@@ -103,5 +164,21 @@ def match_list(request, tournament_id):
         matches = Match.objects.all()
         serializer = MatchListSerializer(matches, many=True)
         return JsonResponse(serializer.data, safe=False)
+    elif request.method == 'POST':
+        data = JSONParser().parse(request)
+        serializer = MatchCreateSerializer(data=data)
+        if not serializer.is_valid():
+            return JsonResponse(serializer.errors, status=400)
 
-# TODO: add match list,
+        new_match = Match(
+            player_1_id=data['player_1_id'],
+            player_2_id=data['player_2_id'],
+            tournament_id=data['tournament_id'],
+            player_1_score=data['player_1_score'],
+            player_2_score=data['player_2_score'],
+            draws=data['draws'],
+            round=data['round']
+        )
+        new_match.save()
+        serializer_return = MatchListSerializer(new_match)
+        return JsonResponse(serializer_return.data, safe=False)

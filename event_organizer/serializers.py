@@ -67,29 +67,39 @@ class TournamentCreateSerializer(serializers.Serializer):
 
 # TournamentCreateSerializer for tournament_list POST
 
-class MatchSerializer(serializers.Serializer):
-    id = serializers.IntegerField(read_only=True)
-    player_1 = GetPlayerSerializer(required=True)
-    player_2 = GetPlayerSerializer(required=True)
-    player_1_score = serializers.IntegerField(max_value=3, min_value=0)
-    player_2_score = serializers.IntegerField(max_value=3, min_value=0)
-    draws = serializers.IntegerField(max_value=5, min_value=0)
-
-
 class MatchListSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
+    player_1_score = serializers.IntegerField(max_value=3, min_value=0)
+    player_2_score = serializers.IntegerField(max_value=3, min_value=0)
+    draws = serializers.IntegerField(max_value=5, min_value=0)
+    round = serializers.IntegerField(max_value=50, min_value=0)
+
+
+class MatchCreateSerializer(serializers.Serializer):
+    player_1_id = serializers.IntegerField(required=True)
+    player_2_id = serializers.IntegerField(required=False)
+    tournament_id = serializers.IntegerField(required=True)
+    player_1_score = serializers.IntegerField(max_value=3, min_value=0)
+    player_2_score = serializers.IntegerField(max_value=3, min_value=0)
+    draws = serializers.IntegerField(max_value=5, min_value=0)
+    round = serializers.IntegerField(max_value=50, min_value=0)
+
+
+class MatchDetailSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
     player_1 = GetPlayerSerializer(required=True)
     player_2 = GetPlayerSerializer(required=True)
     player_1_score = serializers.IntegerField(max_value=3, min_value=0)
     player_2_score = serializers.IntegerField(max_value=3, min_value=0)
     draws = serializers.IntegerField(max_value=5, min_value=0)
+    round = serializers.IntegerField(max_value=50, min_value=0)
 
 
 class TournamentDetailSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(
-        required=True, allow_blank=False, max_length=255)
+    required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
     date_ending = serializers.DateTimeField()
     players = GetPlayerSerializer(many=True)
-    matches = MatchSerializer(many=True, read_only=True)
+    matches = MatchDetailSerializer(many=True, read_only=True)
