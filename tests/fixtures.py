@@ -1,4 +1,4 @@
-from event_organizer.models import Player, Tournament
+from event_organizer.models import Player, Tournament, Match
 
 #
 # Design Pattern: Factory

@@ -1,18 +1,15 @@
+from random import random
+
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import JSONParser
 
 from event_organizer.models import Player, Tournament, Match
 from event_organizer.serializers import (
-    GetPlayerSerializer,
-    CreatePlayerSerializer,
-    UpdatePlayerSerializer,
-    TournamentListSerializer,
-    TournamentDetailSerializer,
-    MatchListSerializer,
-    MatchDetailSerializer,
-    MatchCreateSerializer,
-    TournamentCreateSerializer
+    GetPlayerSerializer, CreatePlayerSerializer, UpdatePlayerSerializer,
+    TournamentListSerializer, TournamentDetailSerializer, MatchListSerializer,
+    MatchDetailSerializer, MatchCreateSerializer, TournamentCreateSerializer,
+    AddPlayersToTournamentSerializer, TournamentPairingsSerializer
 )
 
 
@@ -41,6 +38,25 @@ def player_list(request):
 
         serializer_return = GetPlayerSerializer(new_player)
         return JsonResponse(serializer_return.data, safe=False, status=201)
+
+
+@csrf_exempt
+def players_current_tournaments(request, id):
+    try:
+        player = Player.objects.get(id=id)
+    except Player.DoesNotExist:
+        return HttpResponse(status=404)
+
+    if request.method == 'GET':
+        if len(player.get_current_tournaments()) == 1:
+            serializer = TournamentPairingsSerializer(
+                player.get_current_tournaments()[0], many=False)
+        elif len(player.get_current_tournaments()) > 1:
+            serializer = TournamentListSerializer(
+                player.get_current_tournaments(), many=True)
+        else:
+            return []
+    return JsonResponse(serializer.data, safe=False)
 
 
 @csrf_exempt
@@ -82,22 +98,53 @@ def tournament_list(request):
         tournaments = Tournament.objects.all()
         serializer = TournamentListSerializer(tournaments, many=True)
         return JsonResponse(serializer.data, safe=False)
-# TODO: add POST using player_ids (list of integers) - new serializer
+
     elif request.method == 'POST':
         data = JSONParser().parse(request)
         serializer = TournamentCreateSerializer(data=data)
         if not serializer.is_valid():
             return JsonResponse(serializer.errors, status=400)
+        else:
+            new_tournament = Tournament(
+                name=data['name'],
+                date_beginning=data['date_beginning'],
+                date_ending=data['date_ending']
+                )
+            new_tournament.save()
 
-        new_tournament = Tournament(
-            name=data['name'],
-            date_beginning=data['date_beginning'],
-            date_ending=data['date_ending']
-        )
-        new_tournament.save()
+            serializer_return = TournamentListSerializer(new_tournament)
+            return JsonResponse(serializer_return.data, safe=False, status=201)
 
-        serializer_return = TournamentListSerializer(new_tournament)
-        return JsonResponse(serializer_return.data, safe=False)
+
+@csrf_exempt
+def add_players_to_tournament(request, id):
+    if request.method == 'POST':
+        try:
+            tournament = Tournament.objects.get(id=id)
+        except Tournament.DoesNotExist:
+            return HttpResponse(status=404)
+
+        data = JSONParser().parse(request) # get JSON from request
+        player_ids = data.get('player_ids', [])
+
+        # Cannot do this in serializer since you can't add players to tournament
+        # there. Moving validation logic there would mean you have to query for
+        # players in two places which is inefficient and ugly.
+        missing_ids = []
+        for player_id in player_ids:
+            try:
+                player = Player.objects.get(id=player_id)
+                tournament.players.add(player)
+            except Player.DoesNotExist:
+                missing_ids.append(player_id)
+
+        serializer = AddPlayersToTournamentSerializer(tournament)
+        return_data = {
+            "data": serializer.data,
+            "errors": {"player_id_missing": missing_ids}
+        }
+
+        return JsonResponse(return_data, safe=False)
 
 
 @csrf_exempt
@@ -128,11 +175,12 @@ def tournament_detail(request, id):
         tournament.delete()
         return HttpResponse(status=204)
 
+
 @csrf_exempt
 def match_detail(request, tournament_id, match_id):
     try:
-        match = Match.objects.get(id=match_id)
-    except Tournament.DoesNotExist:
+        match = Match.objects.get(id=match_id, tournament_id=tournament_id)
+    except Match.DoesNotExist:
         return HttpResponse(status=404)
 
     if request.method == 'GET':
@@ -154,14 +202,19 @@ def match_detail(request, tournament_id, match_id):
         return JsonResponse(serializer_return.data, safe=False)
 
     elif request.method == 'DELETE':
-        tournament.delete()
+        match.delete()
         return HttpResponse(status=204)
 
 
 @csrf_exempt
 def match_list(request, tournament_id):
+    try:
+        tournament = Tournament.objects.get(id=tournament_id)
+    except Tournament.DoesNotExist:
+        return HttpResponse(status=404)
+
     if request.method == 'GET':
-        matches = Match.objects.all()
+        matches = Match.objects.filter(tournament_id=tournament_id).all()
         serializer = MatchListSerializer(matches, many=True)
         return JsonResponse(serializer.data, safe=False)
     elif request.method == 'POST':
@@ -173,7 +226,7 @@ def match_list(request, tournament_id):
         new_match = Match(
             player_1_id=data['player_1_id'],
             player_2_id=data['player_2_id'],
-            tournament_id=data['tournament_id'],
+            tournament_id=tournament_id,
             player_1_score=data['player_1_score'],
             player_2_score=data['player_2_score'],
             draws=data['draws'],
@@ -181,4 +234,4 @@ def match_list(request, tournament_id):
         )
         new_match.save()
         serializer_return = MatchListSerializer(new_match)
-        return JsonResponse(serializer_return.data, safe=False)
+        return JsonResponse(serializer_return.data, safe=False, status=201)

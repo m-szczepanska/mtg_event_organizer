@@ -1,5 +1,7 @@
+from math import ceil, log
+
 from django.contrib.auth.hashers import check_password, make_password
-from django.db.models import Q
+from django.db.models import Q, Max
 from django.db import models
 
 
@@ -25,6 +27,45 @@ class Player(models.Model):
         self._password = password_hashed
         self.save()
 
+    def calculate_score_1(self, matches_list):
+        score = 0
+        for match in matches_list:
+            if match.player_1_score > match.player_2_score:
+                score += 3
+            elif match.player_1_score == match.player_2_score:
+                score += 1
+        return score
+
+    def calculate_score_2(self, matches_list):
+        score = 0
+        for match in matches_list:
+            if match.player_2_score > match.player_1_score:
+                score += 3
+            elif match.player_2_score == match.player_1_score:
+                score += 1
+        return score
+
+    def get_score_in_tournament(self, tournament_id):
+        matches_player_1 = Match.objects.filter(
+            player_1_id=self.id, tournament_id=tournament_id).all()
+        matches_player_2 = Match.objects.filter(
+            player_2_id=self.id, tournament_id=tournament_id).all()
+        score_sum = self.calculate_score_1(matches_player_1) + \
+            self.calculate_score_2(matches_player_2)
+        return score_sum
+
+    def get_current_tournaments(self):
+        tournaments = Tournament.objects.filter(players__id=self.id).all()
+        current_tours = [t for t in tournaments if not t.is_finished]
+        return current_tours
+        # return list of tours objects that are ongoing and that the player
+        # takes part in
+
+    def get_current_round_or_tournaments(self):
+        tournaments = get_current_tournaments()
+        if not tournaments:
+            return []
+
     def __str__(self):
         return "%s %s" % (self.first_name, self.last_name)
 
@@ -41,11 +82,83 @@ class Tournament(models.Model):
     date_beginning = models.DateTimeField(auto_now=False, auto_now_add=False)
     date_ending = models.DateTimeField(auto_now=False, auto_now_add=False)
     players = models.ManyToManyField(Player)
+    rounds_number = models.IntegerField(blank=False, default=1)
 
-    def get_player_history(self, player):
-        player_tournaments_all = Tournament.objects.filter(
-            Q(player_1=player) | Q(player_2=player)
+    class Meta:
+        ordering = ('date_beginning',)
+
+    @property
+    def current_round(self):
+        # No pairings were generated yet
+        if not self.matches.all():
+            return []
+        else:
+            max_round = self.matches.aggregate(Max('round'))['round__max']
+            current_round_matches = self.matches.filter(round=max_round)
+            for match in current_round_matches:
+                if not match.is_finished:
+                    return current_round_matches
+                else:
+                    return self.matches.filter(round=(max_round + 1))
+            return current_round_matches
+
+    @property
+    def is_current_round_finished(self):
+        for match in self.current_round:
+            if not match.is_finished:
+                return False
+        return True
+
+    @property  # TODO: move to attributes
+    def is_finished(self):
+        return (
+            self.round_number_next > self.rounds_number and
+            self.is_current_round_finished
         )
+
+    @property
+    def round_number_next(self):
+        round = 1
+        if not self.matches.all():
+            pass
+        elif self.is_current_round_finished:
+            round += self.matches.aggregate(Max('round'))['round__max']
+        else:
+            return self.matches.aggregate(Max('round'))['round__max']
+        return round
+
+    def update_rounds_number(self, number=None):
+        # number is value to override the number of rounds if we want to play
+        # more (or fewer) rounds than we should play (e.g. 4 rounds - 8 players)
+        players_number = self.players.count()
+        if players_number:
+            if number is None:
+                self.rounds_number = ceil(log(players_number, 2))
+            else:
+                self.rounds_number = number
+            self.save()
+
+    @property
+    def past_rounds(self):
+        if self.is_current_round_finished:
+            max_round = self.round_number_next
+        else:
+            max_round = self.matches.aggregate(Max('round'))['round__max']
+        past_round_matches = self.matches.exclude(round=max_round)
+        return past_round_matches
+
+    @property
+    def past_round_pairings(self):
+        past_round_matches = self.past_rounds
+        list_pairings = [
+            [match.player_1_id, match.player_2_id]
+            for match in past_round_matches.all()
+        ]
+        return list_pairings
+
+    @property
+    def get_player_history(self, player):
+        player_tournaments_all = Tournament.objects.filter(player=player)
         return player_tournaments_all
 
     def __str__(self):
@@ -81,6 +194,8 @@ class Match(models.Model):
     draws = models.IntegerField(default=0)
     round = models.IntegerField(default=1)
 
+    class Meta:
+        ordering = ('round',)
 
     # TODO: Move to player model; add tests
     def get_player_matches(self, player):
@@ -92,3 +207,7 @@ class Match(models.Model):
     @property
     def tournament_name(self):
         return self.tournament.name
+
+    @property
+    def is_finished(self):
+        return self.player_1_score or self.player_2_score or self.draws

@@ -4,12 +4,12 @@ from rest_framework import status
 from django.test import TestCase, Client
 from django.db.utils import IntegrityError
 
-from event_organizer.models import Player, Tournament
+from event_organizer.models import Player, Tournament, Match
 from event_organizer.serializers import (
-    GetPlayerSerializer, TournamentListSerializer, TournamentDetailSerializer)
+    GetPlayerSerializer, TournamentListSerializer, TournamentDetailSerializer,
+    MatchDetailSerializer, MatchListSerializer, AddPlayersToTournamentSerializer)
 
 from tests.fixtures import gen_player, gen_tournament
-# TODO: one class for one view
 
 client = Client()
 BASE_URL='//127.0.0.1:8000'
@@ -67,7 +67,7 @@ class TestPlayerDetailsViews(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_player_put_error(self):
+    def test_player_put_400_for_empy_field(self):
         payload = {
             'first_name': '',
             'last_name': 'Bach',
@@ -99,6 +99,13 @@ class TestPlayerListViews(TestCase):
             )
         ]
 
+    def test_players_list_ok(self):
+        response = client.get(f'{BASE_URL}/events/players/')
+        expected = GetPlayerSerializer(self.players, many=True).data
+
+        self.assertEqual(response.json(), expected)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_players_post_ok(self):
         payload = {
             'first_name': 'Mr',
@@ -120,12 +127,6 @@ class TestPlayerListViews(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_players_list_ok(self):
-        response = client.get(f'{BASE_URL}/events/players/')
-        expected = GetPlayerSerializer(self.players, many=True).data
-
-        self.assertEqual(response.json(), expected)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_player_post_duplicate_email(self):
         player_dicts = [
@@ -155,16 +156,14 @@ class TestPlayerListViews(TestCase):
         self.assertEqual(response.json(), expected)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-#
-#         with self.assertRaises(IntegrityError):
-#             for player in self.players:
-#                 player.set_password("pass")  # this saves the model
-#
-#     # def test_players_not_unique_email(self):
-#     #     self.assertRaises(IntegrityError, self.test_player_save())
-
 
 class TestTournamentListViews(TestCase):
+
+    def test_tournaments_ok(self):
+        response = client.get(f'{BASE_URL}/events/tournaments/')
+        expected = TournamentListSerializer(self.tournaments, many=True).data
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def setUp(self):
         players = [
@@ -223,6 +222,44 @@ class TestTournamentListViews(TestCase):
         self.assertEqual(response_clean_time, expected)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_tournaments_post_ok(self):
+        payload = {
+            "name": "test_post_tournament",
+            "date_beginning": "2019-12-13 10:00:00",
+            "date_ending": "2019-12-15 16:00:00",
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        response_clean_time = self.cleanup_datetime_fields(
+            response.json(), many=False)
+
+        self.assertEqual(
+            response_clean_time['name'], payload['name'])
+        self.assertEqual(
+            response_clean_time['date_beginning'], payload['date_beginning'])
+        self.assertEqual(
+            response_clean_time['date_ending'], payload['date_ending'])
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_tournaments_post_404(self):
+        payload = {
+            "name": "",
+            "date_beginning": "2019-12-13 10:00:00",
+            "date_ending": "2019-12-15 16:00:00",
+
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class TestTournamentDetailViews(TestCase):
 
@@ -247,8 +284,15 @@ class TestTournamentDetailViews(TestCase):
                 response_json[f] = response_json[f].replace('Z', '')
         return response_json
 
+    # 404 - GET missing
+    # 201 - DELETE
+    # 404 - DELETE missing
+    # 200 - PUT ok
+    # 400 - PUT not ok - for all failure cases
     def test_tournament_ok(self):
-        response = client.get(f'{BASE_URL}/events/tournaments/{self.tournament.id}/')
+        response = client.get(
+            f'{BASE_URL}/events/tournaments/{self.tournament.id}/'
+        )
         expected = TournamentDetailSerializer(self.tournament).data
         response_clean_time = self.cleanup_datetime_fields(
             response.json(), many=False)
@@ -256,5 +300,411 @@ class TestTournamentDetailViews(TestCase):
         self.assertEqual(response_clean_time, expected)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_tournament_404(self):
+        response = client.get(f'{BASE_URL}/events/tournaments/9999/')
 
-# class TestMatchListViews(TestCase):
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+    def test_tournament_delete_ok(self):
+        response = client.delete(
+            f'{BASE_URL}/events/tournaments/{self.tournament.id}/'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+
+    def test_tournament_delete_404(self):
+        response = client.delete(f'{BASE_URL}/events/tournaments/9999/')
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_tournament_put_ok(self):
+        payload = {
+            "name": "test tournament 1",
+            "date_beginning": "2019-12-13 10:00:00",
+            "date_ending": "2019-12-15 16:00:00"
+        }
+        response = client.put(
+            f'{BASE_URL}/events/tournaments/{self.tournament.id}/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        response_clean_time = self.cleanup_datetime_fields(
+            response.json(), many=False)
+
+        self.assertEqual(
+            response_clean_time['name'], payload['name'])
+        self.assertEqual(
+            response_clean_time['date_beginning'], payload['date_beginning'])
+        self.assertEqual(
+            response_clean_time['date_ending'], payload['date_ending'])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+    def test_tournament_put_400(self):
+        payload = {
+            "name": "test tournament 1",
+            "date_beginning": "2019-12-13 10:00:00",
+            "date_ending": " "
+        }
+        response = client.put(
+            f'{BASE_URL}/events/tournaments/{self.tournament.id}/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class TestMatchListView(TestCase):
+    def setUp(self):
+        players = [
+            gen_player(
+                first_name="Fryderyk",
+                last_name="Chopin",
+                email="email.email@false.com",
+            ),
+            gen_player(
+                first_name="Immanuel",
+                last_name="Kant",
+                email="email.email@mailu.com",
+            ),
+            gen_player(
+                first_name="Muniek",
+                last_name="Kot",
+                email="email.false@mailu.com",
+            )
+        ]
+        tournament = Tournament(
+            name='tournament_test_1',
+            date_beginning='2019-01-02 10:00:00',
+            date_ending='2019-01-03 10:00:00'
+        )
+        # TEMP: set players
+        tournament.save()
+        tournament.players.set(players)
+        self.matches = [
+            Match(
+                player_1_id=players[0].id,
+                player_2_id=players[1].id,
+                tournament_id=tournament.id,
+                player_1_score=1,
+                player_2_score=2,
+                draws=0,
+                round=1),
+            Match(
+                player_1_id=players[1].id,
+                player_2_id=players[2].id,
+                tournament_id=tournament.id,
+                player_1_score=2,
+                player_2_score=0,
+                draws=0,
+                round=2)
+        ]
+        for match in self.matches:
+            match.save()
+
+        # tournament_2 made to check if matches from another tournament
+        # don't show up in match_list
+        tournament_2 = Tournament(
+            name='tournament_test_2',
+            date_beginning='2019-01-02 10:00:00',
+            date_ending='2019-01-03 10:00:00'
+        )
+        tournament_2.save()
+        tournament_2.players.set(players)
+        Match(
+            player_1_id=players[2].id,
+            player_2_id=players[1].id,
+            tournament_id=tournament_2.id,
+            player_1_score=2,
+            player_2_score=1,
+            draws=0,
+            round=1
+        ).save()
+
+    def test_match_get_ok(self):
+        response = client.get(
+            f'{BASE_URL}/events/tournaments/{self.matches[0].tournament_id}/matches/'
+        )
+        expected = MatchListSerializer(self.matches, many=True).data
+
+        self.assertEqual(response.json(), expected)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_match_post_ok(self):
+        payload = {
+            "player_1_id": self.matches[0].player_1_id,
+            "player_2_id": self.matches[0].player_2_id,
+            "player_1_score": self.matches[0].player_1_score,
+            "player_2_score": self.matches[0].player_2_score,
+            "draws": self.matches[0].draws,
+            "round": self.matches[0].round,
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/{self.matches[0].tournament_id}/matches/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(
+            response.json()['player_1_score'], payload['player_1_score'])
+        self.assertEqual(
+            response.json()['player_2_score'], payload['player_2_score'])
+        self.assertEqual(
+            response.json()['draws'], payload['draws'])
+        self.assertEqual(
+            response.json()['round'], payload['round'])
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_match_post_404(self):
+        # confirm you can't create a match in nonexistent tournament
+        payload = {
+            "player_1_id": self.matches[0].player_1_id,
+            "player_2_id": self.matches[0].player_2_id,
+            "player_1_score": self.matches[0].player_1_score,
+            "player_2_score": self.matches[0].player_2_score,
+            "draws": self.matches[0].draws,
+            "round": self.matches[0].round,
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/9999/matches/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class TestMatchDetailView(TestCase):
+    base_url = f'{BASE_URL}/events/tournaments'
+
+    def setUp(self):
+        players = [
+            gen_player(
+                first_name="Fryderyk",
+                last_name="Chopin",
+                email="email.email@false.com",
+            ),
+            gen_player(
+                first_name="Immanuel",
+                last_name="Kant",
+                email="email.email@mailu.com",
+            )
+        ]
+        tournament = Tournament(
+            name='tournament_test_1',
+            date_beginning='2019-01-02 10:00:00',
+            date_ending='2019-01-03 10:00:00'
+        )
+        # TEMP: set players
+        tournament.save()
+        tournament.players.set(players)
+        self.match = Match(
+            player_1_id=players[0].id,
+            player_2_id=players[1].id,
+            tournament_id=tournament.id,
+            player_1_score=1,
+            player_2_score=2,
+            draws=0,
+            round=1
+        )
+        self.match.save()
+
+    def test_match_get_ok(self):
+        response = client.get(
+            f'{self.base_url}/{self.match.tournament_id}/matches/{self.match.id}/'
+        )
+        expected = MatchDetailSerializer(self.match).data
+
+        self.assertEqual(response.json(), expected)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_match_put_ok(self):
+        payload = {
+            "player_1_id": self.match.player_1_id,
+            "player_2_id": self.match.player_2_id,
+            "tournament_id": self.match.tournament.id,
+            "player_1_score": 1,
+            "player_2_score": 1,
+            "draws": 1,
+            "round": self.match.round
+        }
+
+        response = client.put(
+            f'{self.base_url}/{self.match.tournament_id}/matches/{self.match.id}/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(
+            response.json()['player_1_id'], payload['player_1_id'])
+        self.assertEqual(
+            response.json()['player_2_id'], payload['player_2_id'])
+        self.assertEqual(
+            response.json()['tournament_id'], payload['tournament_id'])
+        self.assertEqual(
+            response.json()['player_1_score'], payload['player_1_score'])
+        self.assertEqual(
+            response.json()['player_2_score'], payload['player_2_score'])
+        self.assertEqual(
+            response.json()['draws'], payload['draws'])
+        self.assertEqual(
+            response.json()['round'], payload['round'])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_match_put_400_for_player_score(self):
+        payload = {
+            "player_1_id": self.match.player_1_id,
+            "player_2_id": self.match.player_2_id,
+            "tournament_id": self.match.tournament.id,
+            "player_1_score": 11,
+            "player_2_score": 1,
+            "draws": 1,
+            "round": self.match.round
+        }
+        response = client.put(
+            f'{self.base_url}/{self.match.tournament_id}/matches/{self.match.id}/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_match_put_400_for_empty_field(self):
+        payload = {
+            "player_1_id": self.match.player_1_id,
+            "player_2_id": self.match.player_2_id,
+            "tournament_id": "",
+            "player_1_score": 11,
+            "player_2_score": 1,
+            "draws": 1,
+            "round": self.match.round
+        }
+        response = client.put(
+            f'{self.base_url}/{self.match.tournament_id}/matches/{self.match.id}/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_match_delete_ok(self):
+        response = client.delete(
+            f'{self.base_url}/{self.match.tournament_id}/matches/{self.match.id}/')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_match_delete_404_tournament_missing(self):
+        tournament = Tournament(
+            name='tournament_delete_test',
+            date_beginning='2019-01-02 10:00:00',
+            date_ending='2019-01-03 10:00:00'
+        )
+        tournament.save()
+
+        response = client.delete(
+            f'{self.base_url}/{tournament.id}/matches/{self.match.id}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+class TestAddPlayersToTournament(TestCase):
+    def setUp(self):
+        self.players = [
+            Player(
+                first_name="Fryderyk",
+                last_name="Chopin",
+                email="email.email@false.com",
+            ),
+            Player(
+                first_name="Immanuel",
+                last_name="Kant",
+                email="email.email@mailu.com",
+            )
+        ]
+        self.tournament = Tournament(
+            name='tournament_test_1',
+            date_beginning='2019-01-02 10:00:00',
+            date_ending='2019-01-03 10:00:00'
+        )
+        self.tournament.save()
+        for player in self.players:
+            player.save()
+
+    def test_add_player_to_tournament_ok(self):
+        payload = {
+            "player_ids": [self.players[0].id]
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/{self.tournament.id}/add_players/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        errors = response.json()['errors']
+        data = response.json()['data']
+
+        self.assertEqual(len(errors['player_id_missing']), 0)
+        self.assertEqual(len(data['players']), 1)
+        self.assertEqual(data['players'][0]["id"], payload["player_ids"][0])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_add_player_to_tournament_wrong_player_id(self):
+        payload = {
+            "player_ids": [999]
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/{self.tournament.id}/add_players/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        errors = response.json()['errors']
+        data = response.json()['data']
+
+        self.assertEqual(len(errors['player_id_missing']), 1)
+        self.assertEqual(len(data['players']), 0)
+        self.assertEqual(errors['player_id_missing'][0], payload["player_ids"][0])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_add_player_to_tournament_wrong_tournament_id(self):
+        payload = {
+            "player_ids": [[self.players[0].id]]
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/999/add_players/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_add_two_players_to_tournament_ok(self):
+        payload = {
+            "player_ids": [self.players[0].id, self.players[1].id]
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/{self.tournament.id}/add_players/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        errors = response.json()['errors']
+        data = response.json()['data']
+
+        self.assertEqual(len(errors['player_id_missing']), 0)
+        self.assertEqual(len(data['players']), 2)
+        self.assertEqual(data['players'][0]["id"], payload["player_ids"][0])
+        self.assertEqual(data['players'][1]["id"], payload["player_ids"][1])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_add_two_the_same_players_to_tournament_ok(self):
+        payload = {
+            "player_ids": [self.players[0].id, self.players[0].id]
+        }
+        response = client.post(
+            f'{BASE_URL}/events/tournaments/{self.tournament.id}/add_players/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        errors = response.json()['errors']
+        data = response.json()['data']
+
+        self.assertEqual(len(errors['player_id_missing']), 0)
+        self.assertEqual(len(data['players']), 1)
+        self.assertEqual(data['players'][0]["id"], payload["player_ids"][0])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

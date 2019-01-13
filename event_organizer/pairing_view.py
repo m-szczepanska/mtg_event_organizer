@@ -1,0 +1,145 @@
+from random import shuffle
+
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.parsers import JSONParser
+
+from event_organizer.models import Player, Tournament, Match
+from event_organizer.serializers import (TournamentPairingsSerializer)
+
+
+def check_unique_pairings(current_pairings, past_pairings):
+    duplicate_index = []
+    unique = True
+    for i in range(len(current_pairings)):
+        pair = current_pairings[i]
+        if len(pair) < 2:
+            pair = [pair[0], None]
+        if pair in past_pairings or pair[::-1] in past_pairings:
+            print(pair)
+            unique = False
+            duplicate_index.append(i)
+    return unique, duplicate_index
+
+
+def generate_unique_pairings(duplicates, pairings):
+    if isinstance(duplicates, int): # if duplicates is only one number
+        duplicates = [duplicates]
+    for duplicate in duplicates:
+        duplicate_pair = pairings[duplicate]
+        len_pairings = len(pairings)
+        if duplicate < (len_pairings - 1):
+            another_pair_to_change = pairings[duplicate + 1]
+            if len(another_pair_to_change) > 1 and len(duplicate_pair) > 1:
+                pairings[duplicate] = [duplicate_pair[0], another_pair_to_change[0]]
+                # change the value of a pair in list in place
+            elif len(another_pair_to_change) > 1 and len(duplicate_pair) < 2:
+                pairings[duplicate] = [duplicate_pair[0], another_pair_to_change[0]]
+                pairings[duplicate + 1] = [another_pair_to_change[1]]
+            else: # if another pair to shuffle its player ids contains of one player id
+                new_pairs = [duplicate_pair[0], another_pair_to_change[0]], [duplicate_pair[1]]
+                pairings[duplicate] = [duplicate_pair[0], another_pair_to_change[0]]
+                pairings[duplicate + 1] = [duplicate_pair[1]]
+        else: # if duplicate is the last index of list pairings
+            another_pair_to_change = pairings[duplicate - 1]
+            pairings[duplicate - 1] = [another_pair_to_change[0], duplicate_pair[0]]
+            if len(another_pair_to_change) > 1 and len(duplicate_pair) > 1:
+                pairings[duplicate] = [another_pair_to_change[1], duplicate_pair[1]]
+            elif len(another_pair_to_change) > 1 and len(duplicate_pair) < 2:
+                pairings[duplicate] = [another_pair_to_change[1]]
+            else:
+                pairings[duplicate] = [duplicate_pair[1]]
+    return pairings
+
+def generate_pairings_list(player_ids):
+    # pairings format e.g [[1, 5], [2, 4], [3, 6]]
+    # shuffle(player_ids)
+    pairings = []
+    pairing = []
+    while player_ids:
+        if len(pairing) < 2:
+            pairing.append(player_ids.pop(0))
+        else:
+            pairings.append(pairing)
+            pairing = []
+    if pairing:  # odd number of players
+        pairings.append(pairing)
+
+    return pairings
+
+
+@csrf_exempt
+def tournament_pairings(request, tournament_id):  # Main function in pairings
+    try:
+        tournament = Tournament.objects.get(id=tournament_id)
+    except Tournament.DoesNotExist:
+        return HttpResponse(status=404)
+
+    players = tournament.players.all()
+    player_ids = [player.id for player in tournament.players.all()]
+
+    if not tournament.is_current_round_finished:
+        return HttpResponse("current round not finished yet")
+
+    round_num = tournament.round_number_next
+
+    if player_ids:
+        results = {}
+        # result = {"9": [1, 3], "6": [2, 4]}
+        for player in players:
+            player_score = player.get_score_in_tournament(
+                tournament_id=tournament_id)
+            if player_score not in results:
+                results[player_score] = []
+            results[player_score].append(player.id)
+        for score in results: # Shuffle ids within a score (pair)
+            shuffle(results[score])
+        sorted_results = sorted(results.items(), reverse=True)
+        ids_list =[]
+        for ids in sorted_results:
+            ids_list += ids[1]
+        pairings = generate_pairings_list(ids_list)
+        print(pairings)
+        past_pairings = tournament.past_round_pairings
+        unique, duplicates = check_unique_pairings(pairings, past_pairings)
+        print(unique)
+        counter = 0
+        while unique != True:
+            if counter < 5:
+                pairings = generate_unique_pairings(duplicates, pairings)
+                unique, duplicates = check_unique_pairings(pairings, past_pairings)
+                counter += 1
+                print(counter)
+            else:
+                unique = True
+        # TODO: allow duplicates if ... while goes over 5 times raise error - make manual pairings ?
+        for pair in pairings:
+            if len(pair) == 2:
+                match = Match(
+                    player_1_id=pair[0],
+                    player_2_id=pair[1],
+                    tournament_id=tournament_id,
+                    player_1_score=0,
+                    player_2_score=0,
+                    draws=0,
+                    round=round_num
+                    )
+            else:
+                match = Match(
+                    player_1_id=pair[0],
+                    player_2_id=None,
+                    tournament_id=tournament_id,
+                    player_1_score=2,
+                    player_2_score=0,
+                    draws=0,
+                    round=round_num
+                    )
+            match.save()
+
+        tournament.update_rounds_number(number=None)
+        serializer_return = TournamentPairingsSerializer(tournament)
+        return JsonResponse(serializer_return.data, safe=False)
+
+    else:
+        return HttpResponse(
+            'No players in this tournament yet. Add the player first.')

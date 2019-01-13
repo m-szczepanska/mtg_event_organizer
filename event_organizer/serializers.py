@@ -25,14 +25,14 @@ class CreatePlayerSerializer(serializers.Serializer):
     password_repeat = serializers.CharField(
         required=True, allow_blank=False, max_length=255)
 
-    def validate(self, attrs):
-        if attrs['password'] != attrs['password_repeat']:
+    def validate(self, data):
+        if data['password'] != data['password_repeat']:
             raise serializers.ValidationError('Passwords did not match.')
-        player = Player.objects.filter(email=attrs['email']).first()
+        player = Player.objects.filter(email=data['email']).first()
         if player:
             raise serializers.ValidationError(
                 'Player with this email already exists.')
-        return attrs
+        return data
 
 
 class UpdatePlayerSerializer(serializers.Serializer):
@@ -43,12 +43,12 @@ class UpdatePlayerSerializer(serializers.Serializer):
     email = serializers.EmailField(
         required=True, allow_blank=False)
 
-    def validate(self, attrs):
-        player = Player.objects.filter(email=attrs['email']).first()
+    def validate(self, data):
+        player = Player.objects.filter(email=data['email']).first()
         if player and player.id != self.instance.id:
             raise serializers.ValidationError(
                 'Player with this email already exists.')
-        return attrs
+        return data
 
 
 class TournamentListSerializer(serializers.Serializer):
@@ -57,6 +57,7 @@ class TournamentListSerializer(serializers.Serializer):
         required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
     date_ending = serializers.DateTimeField()
+    is_finished = serializers.BooleanField(read_only=True)
 
 
 class TournamentCreateSerializer(serializers.Serializer):
@@ -65,7 +66,6 @@ class TournamentCreateSerializer(serializers.Serializer):
     date_beginning = serializers.DateTimeField()
     date_ending = serializers.DateTimeField()
 
-# TournamentCreateSerializer for tournament_list POST
 
 class MatchListSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
@@ -78,7 +78,6 @@ class MatchListSerializer(serializers.Serializer):
 class MatchCreateSerializer(serializers.Serializer):
     player_1_id = serializers.IntegerField(required=True)
     player_2_id = serializers.IntegerField(required=False)
-    tournament_id = serializers.IntegerField(required=True)
     player_1_score = serializers.IntegerField(max_value=3, min_value=0)
     player_2_score = serializers.IntegerField(max_value=3, min_value=0)
     draws = serializers.IntegerField(max_value=5, min_value=0)
@@ -87,8 +86,9 @@ class MatchCreateSerializer(serializers.Serializer):
 
 class MatchDetailSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
-    player_1 = GetPlayerSerializer(required=True)
-    player_2 = GetPlayerSerializer(required=True)
+    player_1_id = serializers.IntegerField(required=True)
+    player_2_id = serializers.IntegerField(required=True)
+    tournament_id = serializers.IntegerField(required=True)
     player_1_score = serializers.IntegerField(max_value=3, min_value=0)
     player_2_score = serializers.IntegerField(max_value=3, min_value=0)
     draws = serializers.IntegerField(max_value=5, min_value=0)
@@ -98,8 +98,30 @@ class MatchDetailSerializer(serializers.Serializer):
 class TournamentDetailSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(
-    required=True, allow_blank=False, max_length=255)
+        required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
     date_ending = serializers.DateTimeField()
+    rounds_number = serializers.IntegerField(read_only=True)
     players = GetPlayerSerializer(many=True)
-    matches = MatchDetailSerializer(many=True, read_only=True)
+    current_round = MatchDetailSerializer(many=True, read_only=True)
+    past_rounds = MatchDetailSerializer(many=True, read_only=True)
+    is_finished = serializers.BooleanField(read_only=True)
+
+
+class AddPlayersToTournamentSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    date_beginning = serializers.DateTimeField(read_only=True)
+    date_ending = serializers.DateTimeField(read_only=True)
+    players = GetPlayerSerializer(read_only=True, many=True)
+
+
+class TournamentPairingsSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    date_beginning = serializers.DateTimeField(read_only=True)
+    date_ending = serializers.DateTimeField(read_only=True)
+    players = GetPlayerSerializer(read_only=True, many=True)
+    current_round = MatchDetailSerializer(many=True, read_only=True)
+    is_current_round_finished = serializers.BooleanField(read_only=True)
+    rounds_number = serializers.IntegerField(read_only=True)
