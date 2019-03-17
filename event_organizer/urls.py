@@ -2,7 +2,7 @@ from django.urls import path
 from event_organizer.views import (
     player_list, player_details, tournament_list, tournament_detail,
     match_detail, match_list, add_players_to_tournament,
-    players_current_tournaments)
+    players_current_tournaments, player_history)
 from event_organizer.pairing_view import tournament_pairings
 
 urlpatterns = [
@@ -15,5 +15,6 @@ urlpatterns = [
     path('tournaments/<int:id>/add_players/', add_players_to_tournament),
     path('tournaments/<int:tournament_id>/pairings/', tournament_pairings),
     path('players/<int:id>/current_tournaments/', players_current_tournaments),
+    path('players/<int:id>/player_history/', player_history)
       # tournaments/<int:id>/matches/
 ]

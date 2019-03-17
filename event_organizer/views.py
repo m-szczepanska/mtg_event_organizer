@@ -9,7 +9,8 @@ from event_organizer.serializers import (
     GetPlayerSerializer, CreatePlayerSerializer, UpdatePlayerSerializer,
     TournamentListSerializer, TournamentDetailSerializer, MatchListSerializer,
     MatchDetailSerializer, MatchCreateSerializer, TournamentCreateSerializer,
-    AddPlayersToTournamentSerializer, TournamentPairingsSerializer
+    AddPlayersToTournamentSerializer, TournamentPairingsSerializer,
+    PlayersCurrentTournaments
 )
 
 
@@ -52,11 +53,22 @@ def players_current_tournaments(request, id):
             serializer = TournamentPairingsSerializer(
                 player.get_current_tournaments()[0], many=False)
         elif len(player.get_current_tournaments()) > 1:
-            serializer = TournamentListSerializer(
+            serializer = PlayersCurrentTournaments(
                 player.get_current_tournaments(), many=True)
         else:
             return []
     return JsonResponse(serializer.data, safe=False)
+
+@csrf_exempt
+def player_history(request, id):
+    try:
+        player = Player.objects.get(id=id)
+    except Player.DoesNotExist:
+        return HttpResponse(status=404)
+
+    if request.method == 'GET':
+        serializer = TournamentListSerializer(player.get_player_history(), many=True)
+        return JsonResponse(serializer.data, safe=False)
 
 
 @csrf_exempt

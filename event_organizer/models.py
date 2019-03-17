@@ -61,10 +61,9 @@ class Player(models.Model):
         # return list of tours objects that are ongoing and that the player
         # takes part in
 
-    def get_current_round_or_tournaments(self):
-        tournaments = get_current_tournaments()
-        if not tournaments:
-            return []
+    def get_player_history(self):
+        tournaments = Tournament.objects.filter(players__id=self.id).all()
+        return tournaments
 
     def __str__(self):
         return "%s %s" % (self.first_name, self.last_name)
@@ -155,11 +154,6 @@ class Tournament(models.Model):
             for match in past_round_matches.all()
         ]
         return list_pairings
-
-    @property
-    def get_player_history(self, player):
-        player_tournaments_all = Tournament.objects.filter(player=player)
-        return player_tournaments_all
 
     def __str__(self):
         return "%s" % (self.name)

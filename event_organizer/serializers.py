@@ -125,3 +125,12 @@ class TournamentPairingsSerializer(serializers.Serializer):
     current_round = MatchDetailSerializer(many=True, read_only=True)
     is_current_round_finished = serializers.BooleanField(read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)
+
+class PlayersCurrentTournaments(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
+    date_beginning = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField()
+    current_round = MatchDetailSerializer(many=True, read_only=True)
+    rounds_number = serializers.IntegerField(read_only=True)
