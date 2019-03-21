@@ -4,17 +4,19 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import JSONParser
 
-from event_organizer.models import Player, Tournament, Match
+from event_organizer.models import Player, Tournament, Match, Token
 from event_organizer.serializers import (
     GetPlayerSerializer, CreatePlayerSerializer, UpdatePlayerSerializer,
     TournamentListSerializer, TournamentDetailSerializer, MatchListSerializer,
     MatchDetailSerializer, MatchCreateSerializer, TournamentCreateSerializer,
     AddPlayersToTournamentSerializer, TournamentPairingsSerializer,
-    PlayersCurrentTournaments
+    PlayersCurrentTournaments, PlayersTournamentHistory, TokenSerializer,
+    LoginSerializer
 )
-
+from event_organizer.decorators import view_auth
 
 @csrf_exempt
+@view_auth
 def player_list(request):
     """
     List all players.
@@ -67,8 +69,18 @@ def player_history(request, id):
         return HttpResponse(status=404)
 
     if request.method == 'GET':
-        serializer = TournamentListSerializer(player.get_player_history(), many=True)
-        return JsonResponse(serializer.data, safe=False)
+        tournaments = player.get_player_history()
+        serializer = PlayersTournamentHistory(tournaments, many=True)
+
+        # This should be doable with a SerializerMethodField?
+        data = serializer.data
+        zipped = zip(tournaments, data)
+        # a = [1, 2]
+        # b = ['a', 'b', 'c']
+        # zipped = zip(a, b)  # [[1, 'a'], [2, 'b']]
+        for tournament, tournament_dict in zipped:
+            tournament_dict['score'] = tournament.score_by_player_id(id)
+        return JsonResponse(data, safe=False)
 
 
 @csrf_exempt
@@ -246,4 +258,22 @@ def match_list(request, tournament_id):
         )
         new_match.save()
         serializer_return = MatchListSerializer(new_match)
+        return JsonResponse(serializer_return.data, safe=False, status=201)
+
+
+@csrf_exempt
+def login(request):
+    """
+    Login a player.
+    """
+    if request.method == 'POST':
+        data = JSONParser().parse(request)
+        serializer = LoginSerializer(data=data)
+        if not serializer.is_valid():
+            return JsonResponse(serializer.errors, status=400)
+
+        player = Player.objects.get(email=data['email'])
+        token = Token(player_id=player.id)
+        token.save()
+        serializer_return = TokenSerializer(token)
         return JsonResponse(serializer_return.data, safe=False, status=201)

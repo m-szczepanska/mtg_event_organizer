@@ -1,4 +1,6 @@
+from datetime import datetime
 from math import ceil, log
+from uuid import uuid4
 
 from django.contrib.auth.hashers import check_password, make_password
 from django.db.models import Q, Max
@@ -85,6 +87,20 @@ class Tournament(models.Model):
 
     class Meta:
         ordering = ('date_beginning',)
+
+    def score_by_player_id(self, player_id):
+        player = Player.objects.get(id=player_id)
+        player_score = player.get_score_in_tournament(self.id)
+        return player_score
+
+    @property
+    def scores(self):
+        players = Player.objects.all()
+        scores = []
+        for player in players:
+            player_score = player.get_score_in_tournament(self.id)
+            scores.append([player.id, player_score])
+        return scores
 
     @property
     def current_round(self):
@@ -174,7 +190,7 @@ class Match(models.Model):
         Player,
         on_delete=models.CASCADE,
         related_name='player_1'
-        )
+    )
     player_2 = models.ForeignKey(
         Player,
         on_delete=models.CASCADE,
@@ -205,3 +221,17 @@ class Match(models.Model):
     @property
     def is_finished(self):
         return self.player_1_score or self.player_2_score or self.draws
+
+
+class Token(models.Model):
+    uuid = models.CharField(max_length=200, default=uuid4)
+    created_at = models.DateTimeField(default=datetime.now, blank=True)
+    player = models.ForeignKey(Player, on_delete=models.CASCADE)
+    is_expired = models.BooleanField(default=False)
+
+    # This is an example of a FactoryMethod design pattern
+    # @classmethod
+    # def create(cls, player_id, is_expired):
+    #     instance = cls(uuid=uuid4(), player_id=player_id)
+    #     instance.save()
+    #     return instance

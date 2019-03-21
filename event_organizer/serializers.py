@@ -51,6 +51,31 @@ class UpdatePlayerSerializer(serializers.Serializer):
         return data
 
 
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(
+        required=True, allow_blank=False)
+    password = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
+
+    def validate(self, data):
+        # TODO: make mail not case sensitive
+        player = Player.objects.filter(email=data['email']).first()
+        if not player:
+            raise serializers.ValidationError(
+                'Email dosn\'t exists in the database .')
+        if not player.check_password(data['password']):
+            raise serializers.ValidationError(
+                'Password inncorect.')
+        return data
+
+class TokenSerializer(serializers.Serializer):
+    player_id = serializers.IntegerField(read_only=True)
+    created_at = serializers.DateTimeField()
+    uuid = serializers.CharField(
+        required=True, allow_blank=False)
+    is_expired = serializers.BooleanField(read_only=True)
+
+
 class TournamentListSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(
@@ -126,6 +151,7 @@ class TournamentPairingsSerializer(serializers.Serializer):
     is_current_round_finished = serializers.BooleanField(read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)
 
+
 class PlayersCurrentTournaments(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(
@@ -133,4 +159,15 @@ class PlayersCurrentTournaments(serializers.Serializer):
     date_beginning = serializers.DateTimeField()
     date_ending = serializers.DateTimeField()
     current_round = MatchDetailSerializer(many=True, read_only=True)
+    rounds_number = serializers.IntegerField(read_only=True)
+
+
+class PlayersTournamentHistory(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
+    date_beginning = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField()
+    is_finished = serializers.BooleanField(read_only=True)
+    # scores = serializers.CharField(read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)
