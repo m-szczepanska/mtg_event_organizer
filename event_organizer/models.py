@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from math import ceil, log
 from uuid import uuid4
 
@@ -224,9 +224,9 @@ class Match(models.Model):
 
 
 class Token(models.Model):
-    uuid = models.CharField(max_length=200, default=uuid4)
-    created_at = models.DateTimeField(default=datetime.now, blank=True)
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(default=datetime.now, blank=True)
+    uuid = models.CharField(max_length=200, default=uuid4)
     is_expired = models.BooleanField(default=False)
 
     # This is an example of a FactoryMethod design pattern
@@ -235,3 +235,26 @@ class Token(models.Model):
     #     instance = cls(uuid=uuid4(), player_id=player_id)
     #     instance.save()
     #     return instance
+
+# class PasswordResetToken(models.Model):
+#     player = models.ForeignKey(Player, on_delete=models.CASCADE)
+#     uuid = models.CharField(max_length=200, default=uuid4)
+#     created_at = models.DateTimeField(default=datetime.now, blank=True)
+#     was_used = models.BooleanField(default=False)
+#
+#     @property
+#     def is_valid(self):
+#         timedelta = datetime.now(timezone.utc) - self.created_at
+#         return timedelta.days < 1 and not self.was_used
+
+
+class CreateAccountToken(models.Model):
+    email = models.EmailField(max_length=254)
+    uuid = models.CharField(max_length=200, default=uuid4)
+    created_at = models.DateTimeField(default=datetime.now, blank=True)
+    was_used = models.BooleanField(default=False)
+
+    @property
+    def is_valid(self):
+        timedelta = datetime.now(timezone.utc) - self.created_at
+        return timedelta.days < 1 and not self.was_used

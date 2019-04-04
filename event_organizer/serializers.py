@@ -51,31 +51,6 @@ class UpdatePlayerSerializer(serializers.Serializer):
         return data
 
 
-class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField(
-        required=True, allow_blank=False)
-    password = serializers.CharField(
-        required=True, allow_blank=False, max_length=255)
-
-    def validate(self, data):
-        # TODO: make mail not case sensitive
-        player = Player.objects.filter(email=data['email']).first()
-        if not player:
-            raise serializers.ValidationError(
-                'Email dosn\'t exists in the database .')
-        if not player.check_password(data['password']):
-            raise serializers.ValidationError(
-                'Password inncorect.')
-        return data
-
-class TokenSerializer(serializers.Serializer):
-    player_id = serializers.IntegerField(read_only=True)
-    created_at = serializers.DateTimeField()
-    uuid = serializers.CharField(
-        required=True, allow_blank=False)
-    is_expired = serializers.BooleanField(read_only=True)
-
-
 class TournamentListSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(
@@ -171,3 +146,50 @@ class PlayersTournamentHistory(serializers.Serializer):
     is_finished = serializers.BooleanField(read_only=True)
     # scores = serializers.CharField(read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(
+        required=True, allow_blank=False)
+    password = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
+
+    def validate(self, data):
+        # TODO: make mail not case sensitive
+        player = Player.objects.filter(email=data['email']).first()
+        if not player:
+            raise serializers.ValidationError(
+                'Email dosn\'t exists in the database .')
+        if not player.check_password(data['password']):
+            raise serializers.ValidationError(
+                'Password inncorect.')
+        return data
+
+
+class TokenSerializer(serializers.Serializer):
+    player_id = serializers.IntegerField(read_only=True)
+    created_at = serializers.DateTimeField()
+    uuid = serializers.CharField(
+        required=True, allow_blank=False)
+    is_expired = serializers.BooleanField(read_only=True)
+
+class RegisterRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(
+            required=True, allow_blank=False)
+
+    def validate(self, data):
+        # TODO: make mail not case sensitive
+        player = Player.objects.filter(email=data['email']).first()
+        if player:
+            raise serializers.ValidationError(
+                'Email already exists in the database .')
+        return data
+
+    
+class RegisterTokenSerializer(serializers.Serializer):
+    email = serializers.EmailField(
+            required=True, allow_blank=False)
+    created_at = serializers.DateTimeField()
+    uuid = serializers.CharField(
+        required=True, allow_blank=False)
+    was_used = serializers.BooleanField(read_only=True)

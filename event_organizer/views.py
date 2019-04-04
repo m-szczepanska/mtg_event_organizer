@@ -4,19 +4,23 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import JSONParser
 
-from event_organizer.models import Player, Tournament, Match, Token
+from event_organizer.models import (
+Player, Tournament, Match, Token, CreateAccountToken
+)
 from event_organizer.serializers import (
     GetPlayerSerializer, CreatePlayerSerializer, UpdatePlayerSerializer,
     TournamentListSerializer, TournamentDetailSerializer, MatchListSerializer,
     MatchDetailSerializer, MatchCreateSerializer, TournamentCreateSerializer,
     AddPlayersToTournamentSerializer, TournamentPairingsSerializer,
     PlayersCurrentTournaments, PlayersTournamentHistory, TokenSerializer,
-    LoginSerializer
+    LoginSerializer, RegisterTokenSerializer, RegisterRequestSerializer
 )
 from event_organizer.decorators import view_auth
+from player_services.services import (
+    send_password_reset_mail, check_token_validity, send_user_register_mail)
+
 
 @csrf_exempt
-@view_auth
 def player_list(request):
     """
     List all players.
@@ -61,6 +65,7 @@ def players_current_tournaments(request, id):
             return []
     return JsonResponse(serializer.data, safe=False)
 
+# @view_auth
 @csrf_exempt
 def player_history(request, id):
     try:
@@ -270,10 +275,27 @@ def login(request):
         data = JSONParser().parse(request)
         serializer = LoginSerializer(data=data)
         if not serializer.is_valid():
-            return JsonResponse(serializer.errors, status=400)
+            return JsonResponse(serializer.errors, status=401)
 
         player = Player.objects.get(email=data['email'])
         token = Token(player_id=player.id)
         token.save()
         serializer_return = TokenSerializer(token)
+        return JsonResponse(serializer_return.data, safe=False, status=201)
+
+@csrf_exempt
+def register_request_view(request):
+    """
+    Register request from a player.
+    """
+    if request.method == 'POST':
+        data = JSONParser().parse(request)
+        serializer = RegisterRequestSerializer(data=data)
+        if not serializer.is_valid():
+            return JsonResponse(serializer.errors, status=400)
+
+        token = CreateAccountToken(email=data['email'])
+        token.save()
+        send_user_register_mail(data['email'], token.uuid)
+        serializer_return = RegisterTokenSerializer(token)
         return JsonResponse(serializer_return.data, safe=False, status=201)
