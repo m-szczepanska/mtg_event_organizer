@@ -299,3 +299,29 @@ def register_request_view(request):
         send_user_register_mail(data['email'], token.uuid)
         serializer_return = RegisterTokenSerializer(token)
         return JsonResponse(serializer_return.data, safe=False, status=201)
+
+
+@csrf_exempt
+def register_view(request, token_uuid):
+    """
+    Register a player.
+    """
+    if request.method == 'POST':
+        check_result = check_token_validity(CreateAccountToken, token_uuid)
+        if check_result:
+            return check_result
+
+        else:
+            data = JSONParser().parse(request)
+            serializer = CreatePlayerSerializer(data=data)
+            if not serializer.is_valid():
+                return JsonResponse(serializer.errors, status=400)
+
+            new_player = Player(
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                email=data['email']
+            )
+            new_player.set_password(data['password'])  # also saves the instance
+            serializer_return = GetPlayerSerializer(new_player)
+            return JsonResponse(serializer_return.data, safe=False, status=201)

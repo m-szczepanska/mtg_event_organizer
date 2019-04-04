@@ -14,7 +14,7 @@ def send_password_reset_mail(user_email, token):
     msg['Subject'] = subject
     # TODO: Make this text better
     mail_contents = \
-        f'Reset token is http://127.0.0.1:8000/users/password_reset?token={token}'
+        f'Reset token is http://127.0.0.1:8000/events/password_reset?token={token}'
     msg.attach(MIMEText(mail_contents,'plain'))
     text = msg.as_string()
 
@@ -54,7 +54,7 @@ def send_user_register_mail(user_email, token):
     msg['Subject'] = subject
     # TODO: Make this text better
     mail_contents = \
-        f'Register link >> http://127.0.0.1:8000/users/register?token={token}'
+        f'Register link >> http://127.0.0.1:8000/events/register/?token={token}'
     msg.attach(MIMEText(mail_contents,'plain'))
     text = msg.as_string()
 
