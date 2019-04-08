@@ -236,16 +236,16 @@ class Token(models.Model):
     #     instance.save()
     #     return instance
 
-# class PasswordResetToken(models.Model):
-#     player = models.ForeignKey(Player, on_delete=models.CASCADE)
-#     uuid = models.CharField(max_length=200, default=uuid4)
-#     created_at = models.DateTimeField(default=datetime.now, blank=True)
-#     was_used = models.BooleanField(default=False)
-#
-#     @property
-#     def is_valid(self):
-#         timedelta = datetime.now(timezone.utc) - self.created_at
-#         return timedelta.days < 1 and not self.was_used
+class PasswordResetToken(models.Model):
+    player = models.ForeignKey(Player, on_delete=models.CASCADE)
+    uuid = models.CharField(max_length=200, default=uuid4)
+    created_at = models.DateTimeField(default=datetime.now, blank=True)
+    was_used = models.BooleanField(default=False)
+
+    @property
+    def is_valid(self):
+        timedelta = datetime.now(timezone.utc) - self.created_at
+        return timedelta.days < 1 and not self.was_used
 
 
 class CreateAccountToken(models.Model):

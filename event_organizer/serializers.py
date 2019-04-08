@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
 from event_organizer.models import Player, Tournament, Match
+from player_services.services import (MinimumLengthValidator,
+    NumericPasswordValidator)
 
 
 class GetPlayerSerializer(serializers.Serializer):
@@ -159,10 +161,10 @@ class LoginSerializer(serializers.Serializer):
         player = Player.objects.filter(email=data['email']).first()
         if not player:
             raise serializers.ValidationError(
-                'Email dosn\'t exists in the database .')
+                'Email dosn\'t exists in the database')
         if not player.check_password(data['password']):
             raise serializers.ValidationError(
-                'Password inncorect.')
+                'Password inncorect')
         return data
 
 
@@ -173,6 +175,7 @@ class TokenSerializer(serializers.Serializer):
         required=True, allow_blank=False)
     is_expired = serializers.BooleanField(read_only=True)
 
+
 class RegisterRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(
             required=True, allow_blank=False)
@@ -182,10 +185,10 @@ class RegisterRequestSerializer(serializers.Serializer):
         player = Player.objects.filter(email=data['email']).first()
         if player:
             raise serializers.ValidationError(
-                'Email already exists in the database .')
+                'Email already exists in the database')
         return data
 
-    
+
 class RegisterTokenSerializer(serializers.Serializer):
     email = serializers.EmailField(
             required=True, allow_blank=False)
@@ -193,3 +196,43 @@ class RegisterTokenSerializer(serializers.Serializer):
     uuid = serializers.CharField(
         required=True, allow_blank=False)
     was_used = serializers.BooleanField(read_only=True)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(
+            required=True, allow_blank=False)
+
+    def validate(self, data):
+        # TODO: make mail not case sensitive
+        player = Player.objects.filter(email=data['email']).first()
+        if not player:
+            raise serializers.ValidationError(
+                'Email does not exist in the database')
+        return data
+
+
+class PasswordResetTokenSerializer(serializers.Serializer):
+    player = GetPlayerSerializer(many=False)
+    created_at = serializers.DateTimeField()
+    uuid = serializers.CharField(
+        required=True, allow_blank=False)
+    was_used = serializers.BooleanField(read_only=True)
+
+
+class PasswordPlayerSerializer(serializers.Serializer):
+    password = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
+    password_repeat = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
+
+    def validate(self, data):
+        if data['password'] != data['password_repeat']:
+            raise serializers.ValidationError('Passwords did not match.')
+
+        elif not MinimumLengthValidator.validate(data['password']):
+            raise serializers.ValidationError(
+                'Passwords must have at least 8 characters')
+        elif not NumericPasswordValidator.validate(data['password']):
+            raise serializers.ValidationError(
+                'Password must contain at least 1 digit')
+        return data

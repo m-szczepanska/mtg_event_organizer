@@ -5,7 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import JSONParser
 
 from event_organizer.models import (
-Player, Tournament, Match, Token, CreateAccountToken
+Player, Tournament, Match, Token, CreateAccountToken, PasswordResetToken
 )
 from event_organizer.serializers import (
     GetPlayerSerializer, CreatePlayerSerializer, UpdatePlayerSerializer,
@@ -13,11 +13,14 @@ from event_organizer.serializers import (
     MatchDetailSerializer, MatchCreateSerializer, TournamentCreateSerializer,
     AddPlayersToTournamentSerializer, TournamentPairingsSerializer,
     PlayersCurrentTournaments, PlayersTournamentHistory, TokenSerializer,
-    LoginSerializer, RegisterTokenSerializer, RegisterRequestSerializer
+    LoginSerializer, RegisterTokenSerializer, RegisterRequestSerializer,
+    PasswordResetRequestSerializer, PasswordResetTokenSerializer,
+    PasswordPlayerSerializer
 )
 from event_organizer.decorators import view_auth
 from player_services.services import (
-    send_password_reset_mail, check_token_validity, send_user_register_mail)
+    send_password_reset_mail, check_token_validity, send_user_register_mail,
+    MinimumLengthValidator, NumericPasswordValidator)
 
 
 @csrf_exempt
@@ -275,7 +278,7 @@ def login(request):
         data = JSONParser().parse(request)
         serializer = LoginSerializer(data=data)
         if not serializer.is_valid():
-            return JsonResponse(serializer.errors, status=401)
+            return JsonResponse(serializer.errors, status=400)
 
         player = Player.objects.get(email=data['email'])
         token = Token(player_id=player.id)
@@ -309,7 +312,7 @@ def register_view(request, token_uuid):
     if request.method == 'POST':
         check_result = check_token_validity(CreateAccountToken, token_uuid)
         if check_result:
-            return check_result
+            return JsonResponse(check_result, status=403)
 
         else:
             data = JSONParser().parse(request)
@@ -325,3 +328,47 @@ def register_view(request, token_uuid):
             new_player.set_password(data['password'])  # also saves the instance
             serializer_return = GetPlayerSerializer(new_player)
             return JsonResponse(serializer_return.data, safe=False, status=201)
+
+
+@csrf_exempt
+def password_reset_request(request):
+    """
+    Password reset request from a player.
+    """
+    if request.method == 'POST':
+        data = JSONParser().parse(request)
+        serializer = PasswordResetRequestSerializer(data=data)
+        if not serializer.is_valid():
+            return JsonResponse(serializer.errors, status=400)
+
+        player = Player.objects.get(email=data['email'])
+        token = PasswordResetToken(player=player)
+        token.save()
+        send_password_reset_mail(data['email'], token.uuid)
+        serializer_return = PasswordResetTokenSerializer(token)
+        return JsonResponse(serializer_return.data, safe=False, status=201)
+
+
+@csrf_exempt
+def reset_password_view(request, token_uuid):
+    """
+    Reset players password.
+    """
+    if request.method == 'POST':
+        try:
+            token = PasswordResetToken.objects.get(uuid=token_uuid)
+            if not token.is_valid:
+                context = {"error": "Token expired"}
+                return JsonResponse(context, status=403)
+        except:
+            context = {"error": "Invalid token"}
+            return JsonResponse(context, status=403)
+
+        player = token.player
+        data = JSONParser().parse(request)
+        serializer = PasswordPlayerSerializer(player, data=data)
+        if not serializer.is_valid():
+            return JsonResponse(serializer.errors, status=400)
+        player.set_password(data['password'])  # also saves the instance
+        serializer_return = GetPlayerSerializer(player)
+        return JsonResponse(serializer_return.data, safe=False, status=201)
