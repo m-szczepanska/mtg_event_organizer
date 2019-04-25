@@ -32,7 +32,7 @@ def generate_unique_pairings(duplicates, pairings):
             another_pair_to_change = pairings[duplicate + 1]
             if len(another_pair_to_change) > 1 and len(duplicate_pair) > 1:
                 pairings[duplicate] = [duplicate_pair[0], another_pair_to_change[0]]
-                # change the value of a pair in list in place
+            # change the value of a pair in list in place
             elif len(another_pair_to_change) > 1 and len(duplicate_pair) < 2:
                 pairings[duplicate] = [duplicate_pair[0], another_pair_to_change[0]]
                 pairings[duplicate + 1] = [another_pair_to_change[1]]
@@ -50,6 +50,7 @@ def generate_unique_pairings(duplicates, pairings):
             else:
                 pairings[duplicate] = [duplicate_pair[1]]
     return pairings
+
 
 def generate_pairings_list(player_ids):
     # pairings format e.g [[1, 5], [2, 4], [3, 6]]
@@ -84,8 +85,9 @@ def tournament_pairings(request, tournament_id):  # Main function in pairings
     round_num = tournament.round_number_next
 
     if player_ids:
+        # TODO: Factor out to separate function (e.g. "get players by scores")
         results = {}
-        # result = {"9": [1, 3], "6": [2, 4]}
+        # Creates histogram, i.e. result = {"9": [1, 3], "6": [2, 4]}
         for player in players:
             player_score = player.get_score_in_tournament(
                 tournament_id=tournament_id)
@@ -95,14 +97,20 @@ def tournament_pairings(request, tournament_id):  # Main function in pairings
         for score in results: # Shuffle ids within a score (pair)
             shuffle(results[score])
         sorted_results = sorted(results.items(), reverse=True)
-        ids_list =[]
+        # Cannot list comprehension, don't even try - it's "+" not "append"
+        ids_list = []
         for ids in sorted_results:
             ids_list += ids[1]
+        # After refactor you will have:
+
+        # ids_list = get_players_by_score(players)
         pairings = generate_pairings_list(ids_list)
         print(pairings)
         past_pairings = tournament.past_round_pairings
         unique, duplicates = check_unique_pairings(pairings, past_pairings)
         print(unique)
+
+        # TODO: Factor out to function "create unique pairings"
         counter = 0
         while unique != True:
             if counter < 5:
@@ -113,7 +121,7 @@ def tournament_pairings(request, tournament_id):  # Main function in pairings
             else:
                 unique = True
         # TODO: allow duplicates if ... while goes over 5 times raise error - make manual pairings ?
-        for pair in pairings:
+        for pair in pairings: # dodac last name ....
             if len(pair) == 2:
                 match = Match(
                     player_1_id=pair[0],
@@ -135,6 +143,7 @@ def tournament_pairings(request, tournament_id):  # Main function in pairings
                     round=round_num
                     )
             match.save()
+        # create_pairings(foo, bar, baz, **quux)
 
         tournament.update_rounds_number(number=None)
         serializer_return = TournamentPairingsSerializer(tournament)

@@ -30,6 +30,13 @@ class CreatePlayerSerializer(serializers.Serializer):
     def validate(self, data):
         if data['password'] != data['password_repeat']:
             raise serializers.ValidationError('Passwords did not match.')
+        elif not MinimumLengthValidator.validate(data['password']):
+            raise serializers.ValidationError(
+                'Passwords must have at least 8 characters')
+        elif not NumericPasswordValidator.validate(data['password']):
+            raise serializers.ValidationError(
+                'Password must contain at least 1 digit')
+
         player = Player.objects.filter(email=data['email']).first()
         if player:
             raise serializers.ValidationError(
@@ -86,15 +93,33 @@ class MatchCreateSerializer(serializers.Serializer):
     round = serializers.IntegerField(max_value=50, min_value=0)
 
 
+class MatchSubmitScoreSerializer(serializers.Serializer):
+    player_1_score = serializers.IntegerField(max_value=3, min_value=0)
+    player_2_score = serializers.IntegerField(max_value=3, min_value=0)
+    draws = serializers.IntegerField(max_value=5, min_value=0)
+
+
 class MatchDetailSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     player_1_id = serializers.IntegerField(required=True)
     player_2_id = serializers.IntegerField(required=True)
+    player_1_name = serializers.CharField(read_only=True)
+    player_2_name = serializers.CharField(read_only=True)
+    # TODO: Add first_name && last_name for player_1 and player_2 - also to model
+    # TODO: Create a script that will seed the database (i.e. "put some test data there")
     tournament_id = serializers.IntegerField(required=True)
     player_1_score = serializers.IntegerField(max_value=3, min_value=0)
     player_2_score = serializers.IntegerField(max_value=3, min_value=0)
     draws = serializers.IntegerField(max_value=5, min_value=0)
     round = serializers.IntegerField(max_value=50, min_value=0)
+    is_finished = serializers.BooleanField(read_only=True)
+
+
+class StandingsSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    first_name = serializers.CharField(read_only=True)
+    last_name = serializers.CharField(read_only=True)
+    score = serializers.IntegerField(read_only=True)
 
 
 class TournamentDetailSerializer(serializers.Serializer):
@@ -108,6 +133,7 @@ class TournamentDetailSerializer(serializers.Serializer):
     current_round = MatchDetailSerializer(many=True, read_only=True)
     past_rounds = MatchDetailSerializer(many=True, read_only=True)
     is_finished = serializers.BooleanField(read_only=True)
+    standings = StandingsSerializer(many=True, read_only=True)
 
 
 class AddPlayersToTournamentSerializer(serializers.Serializer):
@@ -127,6 +153,7 @@ class TournamentPairingsSerializer(serializers.Serializer):
     current_round = MatchDetailSerializer(many=True, read_only=True)
     is_current_round_finished = serializers.BooleanField(read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)
+    standings = StandingsSerializer(many=True, read_only=True)
 
 
 class PlayersCurrentTournaments(serializers.Serializer):
@@ -137,6 +164,7 @@ class PlayersCurrentTournaments(serializers.Serializer):
     date_ending = serializers.DateTimeField()
     current_round = MatchDetailSerializer(many=True, read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)
+    current_round_number = serializers.IntegerField(read_only=True)
 
 
 class PlayersTournamentHistory(serializers.Serializer):

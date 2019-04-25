@@ -10,14 +10,19 @@ def uppercase(func):
     return wrapper
 
 
-def view_auth(func):
+def is_authorized(func):
     @functools.wraps(func)
     def wrapper(request, *args, **kwargs):
         try:
-            result = request.META['HTTP_AUTHORIZATION']
+            result = request.META.get('HTTP_AUTHORIZATION')
+            if not result:
+                return HttpResponse(status=400)
             print(result)
-            player_id = result.split(':')[0]
-            uuid = result.split(':')[1]
+            result_split = result.split(':')
+            if not result_split:
+                return HttpResponse(status=400)
+            player_id = result_split[0]
+            uuid = result_split[1]
             token = Token.objects.get(uuid=uuid)
             print(token)
             if token.player_id != int(player_id):

@@ -1,12 +1,34 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from django.core.exceptions import ValidationError
+
+
+class MinimumLengthValidator:
+    min_length = 8
+
+    @classmethod
+    def validate(cls, password):
+        if len(password) < cls.min_length:
+            return False
+        return True
+            # raise ValidationError(
+            #     "The password must contain at least %(min_length)d characters.",
+            #     code='password_too_short',
+            #     params={'min_length': cls.min_length},
+            # )
+
+class NumericPasswordValidator:
+
+    @classmethod
+    def validate(cls, password):
+        return any(i.isdigit() for i in password)
 
 
 def send_password_reset_mail(user_email, token):
-    server_email = 'mtg.tours@gmail.com'
-    server_email_password = 'mtg_tour'
-    subject = 'Todos Password Reset'
+    server_email = 'sending.from.python@gmail.com'
+    server_email_password = 'gmail9393'
+    subject = 'Password Reset'
 
     msg = MIMEMultipart()
     msg['From'] = server_email
@@ -14,7 +36,7 @@ def send_password_reset_mail(user_email, token):
     msg['Subject'] = subject
     # TODO: Make this text better
     mail_contents = \
-        f'Reset token is http://127.0.0.1:8000/events/password_reset?token={token}'
+        f'Reset token is file:///Users/marsza/workspace/mtg_frontend/html:js/reset_password.html?token={token}'
     msg.attach(MIMEText(mail_contents,'plain'))
     text = msg.as_string()
 
@@ -46,7 +68,7 @@ def check_token_validity(cls, token_uuid):
 def send_user_register_mail(user_email, token):
     server_email = 'sending.from.python@gmail.com'
     server_email_password = 'gmail9393'
-    subject = 'Create an account at mtg tournaments'
+    subject = 'Join the mtg tournaments!'
 
     msg = MIMEMultipart()
     msg['From'] = server_email
@@ -54,7 +76,7 @@ def send_user_register_mail(user_email, token):
     msg['Subject'] = subject
     # TODO: Make this text better
     mail_contents = \
-        f'Register link >> http://127.0.0.1:8000/events/register/?token={token}'
+        f'To register go to the link - file:///Users/marsza/workspace/mtg_frontend/html:js/register.html?token={token}'
     msg.attach(MIMEText(mail_contents,'plain'))
     text = msg.as_string()
 

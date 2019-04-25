@@ -5,7 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import JSONParser
 
 from event_organizer.models import (
-Player, Tournament, Match, Token, CreateAccountToken, PasswordResetToken
+    Player, Tournament, Match, Token, CreateAccountToken, PasswordResetToken
 )
 from event_organizer.serializers import (
     GetPlayerSerializer, CreatePlayerSerializer, UpdatePlayerSerializer,
@@ -15,9 +15,9 @@ from event_organizer.serializers import (
     PlayersCurrentTournaments, PlayersTournamentHistory, TokenSerializer,
     LoginSerializer, RegisterTokenSerializer, RegisterRequestSerializer,
     PasswordResetRequestSerializer, PasswordResetTokenSerializer,
-    PasswordPlayerSerializer
+    PasswordPlayerSerializer, MatchSubmitScoreSerializer
 )
-from event_organizer.decorators import view_auth
+from event_organizer.decorators import is_authorized
 from player_services.services import (
     send_password_reset_mail, check_token_validity, send_user_register_mail,
     MinimumLengthValidator, NumericPasswordValidator)
@@ -49,7 +49,7 @@ def player_list(request):
         serializer_return = GetPlayerSerializer(new_player)
         return JsonResponse(serializer_return.data, safe=False, status=201)
 
-
+# @is_authorized
 @csrf_exempt
 def players_current_tournaments(request, id):
     try:
@@ -58,17 +58,16 @@ def players_current_tournaments(request, id):
         return HttpResponse(status=404)
 
     if request.method == 'GET':
-        if len(player.get_current_tournaments()) == 1:
-            serializer = TournamentPairingsSerializer(
-                player.get_current_tournaments()[0], many=False)
-        elif len(player.get_current_tournaments()) > 1:
+        if len(player.get_current_tournaments()) > 0:
             serializer = PlayersCurrentTournaments(
                 player.get_current_tournaments(), many=True)
+            return JsonResponse(serializer.data, safe=False)
         else:
-            return []
-    return JsonResponse(serializer.data, safe=False)
+            serializer = {'error': 'Player doesnt participate in any ongoing tournaments'}
+            return JsonResponse(serializer, safe=False)
 
-# @view_auth
+
+# @is_authorized
 @csrf_exempt
 def player_history(request, id):
     try:
@@ -89,6 +88,7 @@ def player_history(request, id):
         for tournament, tournament_dict in zipped:
             tournament_dict['score'] = tournament.score_by_player_id(id)
         return JsonResponse(data, safe=False)
+
 
 
 @csrf_exempt
@@ -175,7 +175,6 @@ def add_players_to_tournament(request, id):
             "data": serializer.data,
             "errors": {"player_id_missing": missing_ids}
         }
-
         return JsonResponse(return_data, safe=False)
 
 
@@ -222,13 +221,12 @@ def match_detail(request, tournament_id, match_id):
 
     elif request.method == 'PUT':
         data = JSONParser().parse(request)
-        serializer = MatchCreateSerializer(match, data=data)
+        serializer = MatchSubmitScoreSerializer(match, data=data)
         if not serializer.is_valid():
             return JsonResponse(serializer.errors, status=400)
         match.player_1_score = data['player_1_score']
         match.player_2_score = data['player_2_score']
         match.draws = data['draws']
-        match.round = data['round']
         match.save()
         serializer_return = MatchDetailSerializer(match)
         return JsonResponse(serializer_return.data, safe=False)
@@ -269,6 +267,17 @@ def match_list(request, tournament_id):
         return JsonResponse(serializer_return.data, safe=False, status=201)
 
 
+# @csrf_exempt
+# def standings_in_tournament(request, tournament_id):
+#         try:
+#             tournament = Tournament.objects.get(id=tournament_id)
+#         except Tournament.DoesNotExist:
+#             return HttpResponse(status=404)
+#
+#         return JsonResponse(tournament.scores, safe=False)
+#         # serializer = TournamentPairingsSerializer(tournament)
+
+
 @csrf_exempt
 def login(request):
     """
@@ -285,6 +294,24 @@ def login(request):
         token.save()
         serializer_return = TokenSerializer(token)
         return JsonResponse(serializer_return.data, safe=False, status=201)
+
+
+@is_authorized
+@csrf_exempt
+def logout(request):
+    """
+    Logout a player.
+    """
+    if request.method == 'GET':
+        result = request.META['HTTP_AUTHORIZATION']
+        print(result)
+        player_id = result.split(':')[0]
+        uuid = result.split(':')[1]
+        token = Token.objects.get(uuid=uuid)
+        token.is_expired = True
+        token.save()
+        return HttpResponse(status=204)
+
 
 @csrf_exempt
 def register_request_view(request):

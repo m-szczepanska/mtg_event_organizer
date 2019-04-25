@@ -94,12 +94,19 @@ class Tournament(models.Model):
         return player_score
 
     @property
-    def scores(self):
+    def standings(self):
         players = Player.objects.all()
         scores = []
         for player in players:
             player_score = player.get_score_in_tournament(self.id)
-            scores.append([player.id, player_score])
+            scores.append({
+                "id": player.id,
+                "first_name": player.first_name,
+                "last_name": player.last_name,
+                "score": player_score
+                # TODO: Add tiebreakers
+            })
+        scores.sort(key=lambda x: x["score"], reverse=True)
         return scores
 
     @property
@@ -141,6 +148,11 @@ class Tournament(models.Model):
         else:
             return self.matches.aggregate(Max('round'))['round__max']
         return round
+
+    @property
+    def current_round_number(self):
+        num = self.round_number_next
+        return num
 
     def update_rounds_number(self, number=None):
         # number is value to override the number of rounds if we want to play
@@ -213,6 +225,20 @@ class Match(models.Model):
             Q(player_1=player) | Q(player_2=player)
         )
         return player_matches_all
+
+    @property
+    def player_1_name(self):
+        first_name = self.player_1.first_name
+        last_name = self.player_1.last_name
+
+        return f'{last_name}, {first_name}'
+
+    @property
+    def player_2_name(self):
+        first_name = self.player_2.first_name
+        last_name = self.player_2.last_name
+
+        return f'{last_name}, {first_name}'
 
     @property
     def tournament_name(self):
