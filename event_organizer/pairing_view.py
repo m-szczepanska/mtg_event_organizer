@@ -16,11 +16,9 @@ def check_unique_pairings(current_pairings, past_pairings):
         if len(pair) < 2:
             pair = [pair[0], None]
         if pair in past_pairings or pair[::-1] in past_pairings:
-            print(pair)
             unique = False
             duplicate_index.append(i)
     return unique, duplicate_index
-
 
 def generate_unique_pairings(duplicates, pairings):
     if isinstance(duplicates, int): # if duplicates is only one number
@@ -51,7 +49,6 @@ def generate_unique_pairings(duplicates, pairings):
                 pairings[duplicate] = [duplicate_pair[1]]
     return pairings
 
-
 def generate_pairings_list(player_ids):
     # pairings format e.g [[1, 5], [2, 4], [3, 6]]
     # shuffle(player_ids)
@@ -68,6 +65,65 @@ def generate_pairings_list(player_ids):
 
     return pairings
 
+def generate_matches(pairings, tournament):
+    round_num = tournament.round_number_next
+
+    for pair in pairings:
+        if len(pair) == 2:
+            match = Match(
+                player_1_id=pair[0],
+                player_2_id=pair[1],
+                tournament_id=tournament.id,
+                player_1_score=0,
+                player_2_score=0,
+                draws=0,
+                round=round_num
+            )
+        else:
+            match = Match(
+                player_1_id=pair[0],
+                player_2_id=None,
+                tournament_id=tournament.id,
+                player_1_score=2,
+                player_2_score=0,
+                draws=0,
+                round=round_num
+            )
+        match.save()
+
+def get_players_by_score(player_ids, players, tournament):
+    results = {}
+    # Creates histogram => result = {"9": [1, 3], "6": [2, 4]}
+    for player in players:
+        player_score = player.get_score_in_tournament(
+            tournament_id=tournament.id)
+        if player_score not in results:
+            results[player_score] = []
+        results[player_score].append(player.id)
+
+    for score in results:  # Shuffle ids within a score (pair)
+        shuffle(results[score])
+    sorted_results = sorted(results.items(), reverse=True)
+    ids_list = []
+    for ids in sorted_results:
+        ids_list += ids[1]
+
+    return ids_list
+
+def allow_duplicates_in_pairings(unique, duplicates, pairings, past_pairings):
+    # allow duplicates if while goes over 4 times
+    counter = 0
+    while unique != True:
+        if counter < 5:
+            pairings = generate_unique_pairings(duplicates, pairings)
+            unique, duplicates = check_unique_pairings(pairings, past_pairings)
+            counter += 1
+            print(counter)
+        else:
+            unique = True
+
+    return pairings
+
 
 @csrf_exempt
 def tournament_pairings(request, tournament_id):  # Main function in pairings
@@ -76,74 +132,22 @@ def tournament_pairings(request, tournament_id):  # Main function in pairings
     except Tournament.DoesNotExist:
         return HttpResponse(status=404)
 
-    players = tournament.players.all()
-    player_ids = [player.id for player in tournament.players.all()]
-
     if not tournament.is_current_round_finished:
         return HttpResponse("current round not finished yet")
 
-    round_num = tournament.round_number_next
+    players = tournament.players.all()
+    player_ids = [player.id for player in tournament.players.all()]
 
     if player_ids:
-        # TODO: Factor out to separate function (e.g. "get players by scores")
-        results = {}
-        # Creates histogram, i.e. result = {"9": [1, 3], "6": [2, 4]}
-        for player in players:
-            player_score = player.get_score_in_tournament(
-                tournament_id=tournament_id)
-            if player_score not in results:
-                results[player_score] = []
-            results[player_score].append(player.id)
-        for score in results: # Shuffle ids within a score (pair)
-            shuffle(results[score])
-        sorted_results = sorted(results.items(), reverse=True)
-        # Cannot list comprehension, don't even try - it's "+" not "append"
-        ids_list = []
-        for ids in sorted_results:
-            ids_list += ids[1]
-        # After refactor you will have:
-
-        # ids_list = get_players_by_score(players)
+        ids_list = get_players_by_score(player_ids, players, tournament)
         pairings = generate_pairings_list(ids_list)
-        print(pairings)
         past_pairings = tournament.past_round_pairings
         unique, duplicates = check_unique_pairings(pairings, past_pairings)
-        print(unique)
 
-        # TODO: Factor out to function "create unique pairings"
-        counter = 0
-        while unique != True:
-            if counter < 5:
-                pairings = generate_unique_pairings(duplicates, pairings)
-                unique, duplicates = check_unique_pairings(pairings, past_pairings)
-                counter += 1
-                print(counter)
-            else:
-                unique = True
-        # TODO: allow duplicates if ... while goes over 5 times raise error - make manual pairings ?
-        for pair in pairings: # dodac last name ....
-            if len(pair) == 2:
-                match = Match(
-                    player_1_id=pair[0],
-                    player_2_id=pair[1],
-                    tournament_id=tournament_id,
-                    player_1_score=0,
-                    player_2_score=0,
-                    draws=0,
-                    round=round_num
-                    )
-            else:
-                match = Match(
-                    player_1_id=pair[0],
-                    player_2_id=None,
-                    tournament_id=tournament_id,
-                    player_1_score=2,
-                    player_2_score=0,
-                    draws=0,
-                    round=round_num
-                    )
-            match.save()
-        # create_pairings(foo, bar, baz, **quux)
+        pairings = allow_duplicates_in_pairings(
+            unique, duplicates, pairings, past_pairings)
+
+        generate_matches(pairings, tournament)
 
         tournament.update_rounds_number(number=None)
         serializer_return = TournamentPairingsSerializer(tournament)
@@ -151,4 +155,4 @@ def tournament_pairings(request, tournament_id):  # Main function in pairings
 
     else:
         return HttpResponse(
-            'No players in this tournament yet. Add the player first.')
+        'No players in this tournament yet. Add players first.')

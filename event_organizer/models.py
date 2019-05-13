@@ -29,12 +29,17 @@ class Player(models.Model):
         self._password = password_hashed
         self.save()
 
+    @property
+    def full_name(self):
+        full_name = self.first_name + " " + self.last_name
+        return full_name
+
     def calculate_score_1(self, matches_list):
         score = 0
         for match in matches_list:
             if match.player_1_score > match.player_2_score:
                 score += 3
-            elif match.player_1_score == match.player_2_score:
+            elif match.player_1_score == match.player_2_score and match.draws > 0:
                 score += 1
         return score
 
@@ -43,9 +48,15 @@ class Player(models.Model):
         for match in matches_list:
             if match.player_2_score > match.player_1_score:
                 score += 3
-            elif match.player_2_score == match.player_1_score:
+            elif match.player_2_score == match.player_1_score and match.draws > 0:
                 score += 1
         return score
+
+    def dropped_from_tournament(self, tournament_id):
+        # Return True if player dropped from tour
+        tournament = Tournament.objects.get(id=tournament_id)
+        dropped_from_tour = TournamentPlayers(tournament, self).player_dropped
+        return dropped_from_tour
 
     def get_score_in_tournament(self, tournament_id):
         matches_player_1 = Match.objects.filter(
@@ -57,14 +68,15 @@ class Player(models.Model):
         return score_sum
 
     def get_current_tournaments(self):
+        # return list of tours objects that are ongoing and that the player
+        # takes part in
         tournaments = Tournament.objects.filter(players__id=self.id).all()
         current_tours = [t for t in tournaments if not t.is_finished]
         return current_tours
-        # return list of tours objects that are ongoing and that the player
-        # takes part in
 
     def get_player_history(self):
-        tournaments = Tournament.objects.filter(players__id=self.id).all()
+        tournaments = Tournament.objects.filter(
+            players__id=self.id, is_finished=True).all()
         return tournaments
 
     def __str__(self):
@@ -82,32 +94,16 @@ class Tournament(models.Model):
     name = models.CharField(max_length=255, blank=False, default="mtg event")
     date_beginning = models.DateTimeField(auto_now=False, auto_now_add=False)
     date_ending = models.DateTimeField(auto_now=False, auto_now_add=False)
-    players = models.ManyToManyField(Player)
+    players = models.ManyToManyField(
+        Player,
+        through='TournamentPlayers',
+        through_fields=('tournament', 'player'),
+        related_name='tournaments'
+    )
     rounds_number = models.IntegerField(blank=False, default=1)
 
     class Meta:
         ordering = ('date_beginning',)
-
-    def score_by_player_id(self, player_id):
-        player = Player.objects.get(id=player_id)
-        player_score = player.get_score_in_tournament(self.id)
-        return player_score
-
-    @property
-    def standings(self):
-        players = Player.objects.all()
-        scores = []
-        for player in players:
-            player_score = player.get_score_in_tournament(self.id)
-            scores.append({
-                "id": player.id,
-                "first_name": player.first_name,
-                "last_name": player.last_name,
-                "score": player_score
-                # TODO: Add tiebreakers
-            })
-        scores.sort(key=lambda x: x["score"], reverse=True)
-        return scores
 
     @property
     def current_round(self):
@@ -125,45 +121,23 @@ class Tournament(models.Model):
             return current_round_matches
 
     @property
+    def current_round_number(self):
+        num = self.round_number_next
+        return num
+
+    @property
     def is_current_round_finished(self):
         for match in self.current_round:
             if not match.is_finished:
                 return False
         return True
 
-    @property  # TODO: move to attributes
+    @property
     def is_finished(self):
         return (
             self.round_number_next > self.rounds_number and
             self.is_current_round_finished
         )
-
-    @property
-    def round_number_next(self):
-        round = 1
-        if not self.matches.all():
-            pass
-        elif self.is_current_round_finished:
-            round += self.matches.aggregate(Max('round'))['round__max']
-        else:
-            return self.matches.aggregate(Max('round'))['round__max']
-        return round
-
-    @property
-    def current_round_number(self):
-        num = self.round_number_next
-        return num
-
-    def update_rounds_number(self, number=None):
-        # number is value to override the number of rounds if we want to play
-        # more (or fewer) rounds than we should play (e.g. 4 rounds - 8 players)
-        players_number = self.players.count()
-        if players_number:
-            if number is None:
-                self.rounds_number = ceil(log(players_number, 2))
-            else:
-                self.rounds_number = number
-            self.save()
 
     @property
     def past_rounds(self):
@@ -183,8 +157,69 @@ class Tournament(models.Model):
         ]
         return list_pairings
 
+    @property
+    def round_number_next(self):
+        round = 1
+        if not self.matches.all():
+            pass
+        elif self.is_current_round_finished:
+            round += self.matches.aggregate(Max('round'))['round__max']
+        else:
+            return self.matches.aggregate(Max('round'))['round__max']
+        return round
+
+    @property
+    def standings(self):
+        players = self.players.all()
+        scores = []
+        for player in players:
+            player_score = player.get_score_in_tournament(self.id)
+            scores.append({
+                "id": player.id,
+                "first_name": player.first_name,
+                "last_name": player.last_name,
+                "score": player_score
+                # TODO: Add tiebreakers
+            })
+        scores.sort(key=lambda x: x["score"], reverse=True)
+        for i in range(len(scores)):
+            scores[i]["order"] = i + 1
+        return scores
+
     def __str__(self):
         return "%s" % (self.name)
+
+    def score_by_player_id(self, player_id):
+        player = Player.objects.get(id=player_id)
+        player_score = player.get_score_in_tournament(self.id)
+        return player_score
+
+    def update_rounds_number(self, number=None):
+        # number is value to override the number of rounds if we want to play
+        # more (or fewer) rounds than we should play (e.g. 4 rounds - 8 players)
+        players_number = self.players.count()
+        if players_number:
+            if number is None:
+                self.rounds_number = ceil(log(players_number, 2))
+            else:
+                self.rounds_number = number
+            self.save()
+
+
+class TournamentPlayers(models.Model):
+    """ A custom model that represents the intermediate table
+        established with a many-to-many relationship between Player model
+        and Tournament model.
+    """
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+    )
+    player = models.ForeignKey(
+        Player,
+        on_delete=models.CASCADE,
+    )
+    player_dropped = models.BooleanField(default=False)
 
 
 class Match(models.Model):
@@ -261,6 +296,7 @@ class Token(models.Model):
     #     instance = cls(uuid=uuid4(), player_id=player_id)
     #     instance.save()
     #     return instance
+
 
 class PasswordResetToken(models.Model):
     player = models.ForeignKey(Player, on_delete=models.CASCADE)

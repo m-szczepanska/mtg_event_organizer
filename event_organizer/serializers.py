@@ -13,6 +13,8 @@ class GetPlayerSerializer(serializers.Serializer):
         required=True, allow_blank=False, max_length=255)
     email = serializers.EmailField(
         required=True, allow_blank=False)
+    full_name = serializers.CharField(
+        required=True, allow_blank=False, max_length=255)
 
 
 class CreatePlayerSerializer(serializers.Serializer):
@@ -65,7 +67,7 @@ class TournamentListSerializer(serializers.Serializer):
     name = serializers.CharField(
         required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
-    date_ending = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField(required=False)
     is_finished = serializers.BooleanField(read_only=True)
 
 
@@ -73,7 +75,7 @@ class TournamentCreateSerializer(serializers.Serializer):
     name = serializers.CharField(
         required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
-    date_ending = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField(required=False)
 
 
 class MatchListSerializer(serializers.Serializer):
@@ -117,6 +119,7 @@ class MatchDetailSerializer(serializers.Serializer):
 
 class StandingsSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
+    order = serializers.IntegerField(read_only=True)
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
     score = serializers.IntegerField(read_only=True)
@@ -127,7 +130,7 @@ class TournamentDetailSerializer(serializers.Serializer):
     name = serializers.CharField(
         required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
-    date_ending = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField(required=False)
     rounds_number = serializers.IntegerField(read_only=True)
     players = GetPlayerSerializer(many=True)
     current_round = MatchDetailSerializer(many=True, read_only=True)
@@ -140,7 +143,7 @@ class AddPlayersToTournamentSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(read_only=True)
     date_beginning = serializers.DateTimeField(read_only=True)
-    date_ending = serializers.DateTimeField(read_only=True)
+    date_ending = serializers.DateTimeField(read_only=True, required=False)
     players = GetPlayerSerializer(read_only=True, many=True)
 
 
@@ -148,7 +151,7 @@ class TournamentPairingsSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(read_only=True)
     date_beginning = serializers.DateTimeField(read_only=True)
-    date_ending = serializers.DateTimeField(read_only=True)
+    date_ending = serializers.DateTimeField(read_only=True, required=False)
     players = GetPlayerSerializer(read_only=True, many=True)
     current_round = MatchDetailSerializer(many=True, read_only=True)
     is_current_round_finished = serializers.BooleanField(read_only=True)
@@ -161,7 +164,7 @@ class PlayersCurrentTournaments(serializers.Serializer):
     name = serializers.CharField(
         required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
-    date_ending = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField(required=False)
     current_round = MatchDetailSerializer(many=True, read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)
     current_round_number = serializers.IntegerField(read_only=True)
@@ -172,7 +175,7 @@ class PlayersTournamentHistory(serializers.Serializer):
     name = serializers.CharField(
         required=True, allow_blank=False, max_length=255)
     date_beginning = serializers.DateTimeField()
-    date_ending = serializers.DateTimeField()
+    date_ending = serializers.DateTimeField(required=False)
     is_finished = serializers.BooleanField(read_only=True)
     # scores = serializers.CharField(read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)

@@ -5,7 +5,8 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import JSONParser
 
 from event_organizer.models import (
-    Player, Tournament, Match, Token, CreateAccountToken, PasswordResetToken
+    Player, Tournament, Match, Token, CreateAccountToken, PasswordResetToken,
+    TournamentPlayers
 )
 from event_organizer.serializers import (
     GetPlayerSerializer, CreatePlayerSerializer, UpdatePlayerSerializer,
@@ -122,7 +123,6 @@ def player_details(request, id):
     elif request.method == 'DELETE':
         player.delete()
         return HttpResponse(status=204)
-
 
 @csrf_exempt
 def tournament_list(request):
