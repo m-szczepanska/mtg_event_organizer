@@ -16,8 +16,9 @@ from event_organizer.serializers import (TournamentPairingsSerializer)
 
 
 def tournament_pairings(tournament):  # Main function in pairings
-    players = tournament.players.all()
-    player_ids = [player.id for player in tournament.players.all()]
+    players_all = tournament.players.all()
+    players = [player for player in players_all]
+    player_ids = [player.id for player in players]
 
     ids_list = get_players_by_score(player_ids, players, tournament)
     pairings = generate_pairings_list(ids_list)
@@ -27,7 +28,9 @@ def tournament_pairings(tournament):  # Main function in pairings
     pairings = allow_duplicates_in_pairings(
         unique, duplicates, pairings, past_pairings)
 
-    generate_matches(pairings, tournament)
+    if tournament.rounds_number >= tournament.round_number_next:
+        generate_matches(pairings, tournament)
+
     tournament.update_rounds_number(number=None)
 
 if len(Player.objects.all()) == 0:
@@ -35,32 +38,32 @@ if len(Player.objects.all()) == 0:
         {
             "first_name": "Jon",
             "last_name": "Fynkel",
-            "email": "marsza11jm@gmail.score_sum.com"
+            "email": "marsza11jm@gmail.com"
         },
         {
             "first_name": "Luis XS",
             "last_name": "Wargas",
-            "email": "playwithluis@mtg.cos"
+            "email": "playluis@mtg.cos"
         },
         {
             "first_name": "Seth",
             "last_name": "Mantism",
-            "email": "playwithseth@mtg.cos"
+            "email": "playseth@mtg.cos"
         },
         {
             "first_name": "Benek",
             "last_name": "Stark",
-            "email": "playwithbenek@mtg.cos"
+            "email": "playbenek@mtg.cos"
         },
         {
             "first_name": "Paulo",
             "last_name": "Rosa",
-            "email": "playwithpaulo@mtg.cos"
+            "email": "playpaulo@mtg.cos"
         },
         {
             "first_name": "The",
             "last_name": "Jester",
-            "email": "playwithjester@mtg.cos"
+            "email": "playjester@mtg.cos"
         }
     ]
     # Genereate players

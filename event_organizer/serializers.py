@@ -107,8 +107,6 @@ class MatchDetailSerializer(serializers.Serializer):
     player_2_id = serializers.IntegerField(required=True)
     player_1_name = serializers.CharField(read_only=True)
     player_2_name = serializers.CharField(read_only=True)
-    # TODO: Add first_name && last_name for player_1 and player_2 - also to model
-    # TODO: Create a script that will seed the database (i.e. "put some test data there")
     tournament_id = serializers.IntegerField(required=True)
     player_1_score = serializers.IntegerField(max_value=3, min_value=0)
     player_2_score = serializers.IntegerField(max_value=3, min_value=0)
@@ -136,6 +134,7 @@ class TournamentDetailSerializer(serializers.Serializer):
     current_round = MatchDetailSerializer(many=True, read_only=True)
     past_rounds = MatchDetailSerializer(many=True, read_only=True)
     is_finished = serializers.BooleanField(read_only=True)
+    is_current_round_finished = serializers.BooleanField(read_only=True)
     standings = StandingsSerializer(many=True, read_only=True)
 
 
@@ -177,8 +176,14 @@ class PlayersTournamentHistory(serializers.Serializer):
     date_beginning = serializers.DateTimeField()
     date_ending = serializers.DateTimeField(required=False)
     is_finished = serializers.BooleanField(read_only=True)
-    # scores = serializers.CharField(read_only=True)
     rounds_number = serializers.IntegerField(read_only=True)
+    score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Player
+
+    def score(self, Tournament):
+        return Tournament.score_by_player_id(self.id)
 
 
 class LoginSerializer(serializers.Serializer):
@@ -267,3 +272,13 @@ class PasswordPlayerSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 'Password must contain at least 1 digit')
         return data
+
+
+class TounamentPlayersDrop(serializers.Serializer):
+    player_dropped = serializers.BooleanField(required=True)
+
+
+class TounamentPlayersDrop2(serializers.Serializer):
+    tournament = TournamentDetailSerializer(read_only=True)
+    player = GetPlayerSerializer(read_only=True)
+    player_dropped = serializers.BooleanField(required=True)

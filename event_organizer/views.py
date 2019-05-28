@@ -16,12 +16,14 @@ from event_organizer.serializers import (
     PlayersCurrentTournaments, PlayersTournamentHistory, TokenSerializer,
     LoginSerializer, RegisterTokenSerializer, RegisterRequestSerializer,
     PasswordResetRequestSerializer, PasswordResetTokenSerializer,
-    PasswordPlayerSerializer, MatchSubmitScoreSerializer
+    PasswordPlayerSerializer, MatchSubmitScoreSerializer, TounamentPlayersDrop
 )
 from event_organizer.decorators import is_authorized
 from player_services.services import (
     send_password_reset_mail, check_token_validity, send_user_register_mail,
     MinimumLengthValidator, NumericPasswordValidator)
+
+from event_organizer.pairing_view import tournament_pairings
 
 
 @csrf_exempt
@@ -49,6 +51,7 @@ def player_list(request):
 
         serializer_return = GetPlayerSerializer(new_player)
         return JsonResponse(serializer_return.data, safe=False, status=201)
+
 
 # @is_authorized
 @csrf_exempt
@@ -80,16 +83,19 @@ def player_history(request, id):
         tournaments = player.get_player_history()
         serializer = PlayersTournamentHistory(tournaments, many=True)
 
-        # This should be doable with a SerializerMethodField?
-        data = serializer.data
-        zipped = zip(tournaments, data)
-        # a = [1, 2]
-        # b = ['a', 'b', 'c']
-        # zipped = zip(a, b)  # [[1, 'a'], [2, 'b']]
-        for tournament, tournament_dict in zipped:
-            tournament_dict['score'] = tournament.score_by_player_id(id)
-        return JsonResponse(data, safe=False)
-
+        # # This should be doable with a SerializerMethodField?
+        # print('sd', serializer.data)
+        # data = serializer.data
+        # zipped = zip(tournaments, data)
+        # # a = [1, 2]
+        # # b = ['a', 'b', 'c']
+        # # zipped = zip(a, b)  # [[1, 'a'], [2, 'b']]
+        # for tournament, tournament_dict in zipped:
+        #     tournament_dict['score'] = tournament.score_by_player_id(id)
+        #     print('tour', tournaments)
+        #
+        #     print('tour_dict', tournament_dict)
+        return JsonResponse(serializer.data, safe=False)
 
 
 @csrf_exempt
@@ -123,6 +129,33 @@ def player_details(request, id):
     elif request.method == 'DELETE':
         player.delete()
         return HttpResponse(status=204)
+
+
+@csrf_exempt
+def drop_from_tournament(request, tournament_id, player_id):
+    return HttpResponse(status=404)
+
+    # TODO: This requires a lot of thinking and work and will be done later.
+    try:
+        tournament = Tournament.objects.get(id=tournament_id)
+    except Torunament.DoesNotExist:
+        return HttpResponse(status=404)
+
+    try:
+        player = Player.objects.get(id=player_id)
+    except Player.DoesNotExist:
+        return HttpResponse(status=404)
+
+    tournament_players = TournamentPlayers.objects.get(
+        tournament=tournament, player=player)
+
+    if request.method == 'PUT':
+        tournament_players.tournament = tournament
+        tournament_players.player = player
+        tournament_players.player_dropped = True
+        tournament_players.save()
+        return HttpResponse(status=200)
+
 
 @csrf_exempt
 def tournament_list(request):
@@ -187,6 +220,9 @@ def tournament_detail(request, id):
 
     if request.method == 'GET':
         tournament = Tournament.objects.get(id=id)
+        if tournament.is_current_round_finished:
+            tournament_pairings(request, tournament.id)
+
         serializer = TournamentDetailSerializer(tournament, many=False)
         return JsonResponse(serializer.data, safe=False)
 
@@ -267,17 +303,6 @@ def match_list(request, tournament_id):
         return JsonResponse(serializer_return.data, safe=False, status=201)
 
 
-# @csrf_exempt
-# def standings_in_tournament(request, tournament_id):
-#         try:
-#             tournament = Tournament.objects.get(id=tournament_id)
-#         except Tournament.DoesNotExist:
-#             return HttpResponse(status=404)
-#
-#         return JsonResponse(tournament.scores, safe=False)
-#         # serializer = TournamentPairingsSerializer(tournament)
-
-
 @csrf_exempt
 def login(request):
     """
@@ -304,7 +329,6 @@ def logout(request):
     """
     if request.method == 'GET':
         result = request.META['HTTP_AUTHORIZATION']
-        print(result)
         player_id = result.split(':')[0]
         uuid = result.split(':')[1]
         token = Token.objects.get(uuid=uuid)

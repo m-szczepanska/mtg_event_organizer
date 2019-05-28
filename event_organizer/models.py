@@ -39,8 +39,12 @@ class Player(models.Model):
         for match in matches_list:
             if match.player_1_score > match.player_2_score:
                 score += 3
-            elif match.player_1_score == match.player_2_score and match.draws > 0:
+            elif match.draws > 0 and match.player_1_score == match.player_2_score:
                 score += 1
+            # in case of players records score incorrectly
+            elif match.player_1_score == match.player_2_score:
+                if match.player_1_score > 0 and match.player_2_score > 0:
+                    score += 1
         return score
 
     def calculate_score_2(self, matches_list):
@@ -48,15 +52,13 @@ class Player(models.Model):
         for match in matches_list:
             if match.player_2_score > match.player_1_score:
                 score += 3
-            elif match.player_2_score == match.player_1_score and match.draws > 0:
+            elif match.draws > 0 and match.player_2_score == match.player_1_score:
                 score += 1
+            # in case of players records score incorrectly
+            elif match.player_2_score == match.player_1_score:
+                if match.player_2_score > 0 and match.player_1_score > 0:
+                    score += 1
         return score
-
-    def dropped_from_tournament(self, tournament_id):
-        # Return True if player dropped from tour
-        tournament = Tournament.objects.get(id=tournament_id)
-        dropped_from_tour = TournamentPlayers(tournament, self).player_dropped
-        return dropped_from_tour
 
     def get_score_in_tournament(self, tournament_id):
         matches_player_1 = Match.objects.filter(
@@ -67,6 +69,15 @@ class Player(models.Model):
             self.calculate_score_2(matches_player_2)
         return score_sum
 
+    # def did_not_drop(self, tournament_id):
+    #     tournament = Tournament.objects.get(id=tournament_id)
+    #     through_model = TournamentPlayers.objects.get(tournament=tournament, player=self)
+    #     dropped_from_tour = through_model.player_dropped
+    #     if dropped_from_tour:
+    #         return None
+    #     else:
+    #         return self
+
     def get_current_tournaments(self):
         # return list of tours objects that are ongoing and that the player
         # takes part in
@@ -75,9 +86,10 @@ class Player(models.Model):
         return current_tours
 
     def get_player_history(self):
-        tournaments = Tournament.objects.filter(
-            players__id=self.id, is_finished=True).all()
-        return tournaments
+        tournaments_all = Tournament.objects.filter(
+            players__id=self.id).all()
+        tournaments_finished = [t for t in tournaments_all if t.past_rounds]
+        return tournaments_finished
 
     def __str__(self):
         return "%s %s" % (self.first_name, self.last_name)
@@ -113,12 +125,14 @@ class Tournament(models.Model):
         else:
             max_round = self.matches.aggregate(Max('round'))['round__max']
             current_round_matches = self.matches.filter(round=max_round)
+            in_play_matches = []
             for match in current_round_matches:
                 if not match.is_finished:
-                    return current_round_matches
-                else:
-                    return self.matches.filter(round=(max_round + 1))
-            return current_round_matches
+                    in_play_matches.append(match)
+            if in_play_matches:
+                return current_round_matches
+            else:
+                return self.matches.filter(round=(max_round + 1))
 
     @property
     def current_round_number(self):
@@ -179,6 +193,7 @@ class Tournament(models.Model):
                 "first_name": player.first_name,
                 "last_name": player.last_name,
                 "score": player_score
+
                 # TODO: Add tiebreakers
             })
         scores.sort(key=lambda x: x["score"], reverse=True)
